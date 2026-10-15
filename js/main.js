@@ -56,8 +56,13 @@ sfx = function (name) {
   Snd.last[name] = now;
   switch (name) {
     case 'chop': noise(0.06, 0.06, 2500); break;
-    case 'select': tone(520, 0.06, 'triangle', 0.06); break;
-    case 'ack': tone(392, 0.07, 'triangle', 0.07); tone(523, 0.07, 'triangle', 0.06, 0, 0.06); break;
+    case 'select': if (!speak('select')) tone(520, 0.06, 'triangle', 0.06); break;
+    case 'ack': if (!speak('ack')) { tone(392, 0.07, 'triangle', 0.07); tone(523, 0.07, 'triangle', 0.06, 0, 0.06); } break;
+    case 'heal': [660, 880, 1100].forEach((f, i) => tone(f, 0.25, 'sine', 0.05, 0, i * 0.07)); break;
+    case 'summon': tone(140, 0.9, 'sawtooth', 0.05, 220); noise(0.6, 0.06, 1800); break;
+    case 'thunder': noise(1.4, 0.25, 260); tone(55, 1.2, 'sawtooth', 0.06, -20); break;
+    case 'zap': noise(0.12, 0.12, 4000); break;
+    case 'wind': noise(2.5, 0.12, 900); noise(2.5, 0.06, 2600, 0.4); break;
     case 'click': tone(660, 0.05, 'square', 0.04); break;
     case 'error': tone(160, 0.15, 'square', 0.06); break;
     case 'place': noise(0.15, 0.12, 600); tone(220, 0.12, 'triangle', 0.08); break;
@@ -71,6 +76,209 @@ sfx = function (name) {
     case 'defeat': [220, 196, 165, 131].forEach((f, i) => tone(f, 0.6, 'sawtooth', 0.06, 0, i * 0.25)); break;
   }
 };
+
+// ---------- unit voices ----------
+
+// A tiny formant synthesizer: a buzzing source through two vowel filters
+// gives each unit a short grunt of acknowledgement.
+const VOWELS = [[730, 1090], [570, 840], [400, 1900], [300, 870], [660, 1700]];
+const VOICE = {
+  vikings: { worker: 150, melee: 115, ranged: 135, rider: 240, siege: 0, caster: 250, einherjar: 95, wolf: -1 },
+  jotnar: { worker: 120, melee: 75, ranged: 100, rider: -1, siege: 55, caster: 90, einherjar: 95, wolf: -1 },
+};
+
+function syllable(ac, out, f0, t0, dur, vowel, glide) {
+  const src = ac.createOscillator();
+  src.type = 'sawtooth';
+  src.frequency.setValueAtTime(f0, t0);
+  src.frequency.linearRampToValueAtTime(f0 * glide, t0 + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(g);
+  for (const [i, f] of vowel.entries()) {
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = 9;
+    const fg = ac.createGain();
+    fg.gain.value = i === 0 ? 0.9 : 0.5;
+    g.connect(bp).connect(fg).connect(out);
+  }
+  src.start(t0);
+  src.stop(t0 + dur + 0.05);
+}
+
+function speak(kind) {
+  const ac = Snd.ctx;
+  const u = [...UI.selected].find(e => e.kind === 'unit' && e.owner === G.human && !e.dead);
+  if (!ac || !u) return false;
+  const f = G.players[u.owner].faction;
+  const f0 = VOICE[f][u.type];
+  const t0 = ac.currentTime + 0.01;
+  const out = ac.createGain();
+  out.gain.value = 0.22;
+  out.connect(ac.destination);
+  if (f0 === -1) {
+    // Wolves and wolf riders: a short growl or yip.
+    tone(kind === 'ack' ? 420 : 180, kind === 'ack' ? 0.35 : 0.3, 'sawtooth', 0.05, kind === 'ack' ? 260 : -60);
+    return true;
+  }
+  if (f0 === 0) {
+    // The ballista creaks instead of talking.
+    noise(0.18, 0.1, 700);
+    tone(90, 0.15, 'square', 0.03, 40, 0.12);
+    return true;
+  }
+  const jit = 0.9 + Math.random() * 0.2;
+  const v1 = VOWELS[Math.floor(Math.random() * VOWELS.length)];
+  if (kind === 'select') {
+    syllable(ac, out, f0 * jit, t0, 0.22, v1, 1.15);
+  } else {
+    syllable(ac, out, f0 * jit * 1.1, t0, 0.12, VOWELS[2], 1.0);
+    syllable(ac, out, f0 * jit, t0 + 0.13, 0.2, v1, 0.85);
+  }
+  if (u.type === 'einherjar') noise(0.4, 0.04, 3000);
+  return true;
+}
+
+// ---------- music ----------
+
+// Generative Norse-flavoured score: a drone on D, a frame drum and a sparse
+// lyre-like melody in D dorian. Drums grow busier while battle is near.
+const Music = { on: true, timer: null, next: 0, step: 0, out: null, phrase: [] };
+const MUSIC_STEP = 60 / 76 / 2;
+const BASS = [73.42, 73.42, 65.41, 55.0];
+const SCALE = [293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25, 587.33];
+
+function makePhrase() {
+  const ph = [];
+  let deg = 4;
+  for (let i = 0; i < 64; i++) {
+    if (i % 2 === 0 && Math.random() < 0.38) {
+      deg = Math.max(0, Math.min(SCALE.length - 1, deg + Math.floor(Math.random() * 5) - 2));
+      ph.push(deg);
+    } else ph.push(-1);
+  }
+  return ph;
+}
+
+function musicVoice(ac, freq, t0, dur, vol) {
+  const o = ac.createOscillator();
+  o.type = 'triangle';
+  o.frequency.value = freq;
+  const vib = ac.createOscillator();
+  vib.frequency.value = 5;
+  const vg = ac.createGain();
+  vg.gain.value = freq * 0.008;
+  vib.connect(vg).connect(o.frequency);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(Music.out);
+  o.start(t0); vib.start(t0);
+  o.stop(t0 + dur + 0.05); vib.stop(t0 + dur + 0.05);
+}
+
+function musicDrone(ac, freq, t0, dur) {
+  for (const [mult, det] of [[1, -4], [1.5, 3], [2, 0]]) {
+    const o = ac.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = freq * mult;
+    o.detune.value = det;
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 380;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(mult === 2 ? 0.012 : 0.025, t0 + 0.8);
+    g.gain.setValueAtTime(mult === 2 ? 0.012 : 0.025, t0 + dur - 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.4);
+    o.connect(lp).connect(g).connect(Music.out);
+    o.start(t0);
+    o.stop(t0 + dur + 0.5);
+  }
+}
+
+function musicDrum(ac, t0, vol, pitch) {
+  const o = ac.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(pitch, t0);
+  o.frequency.exponentialRampToValueAtTime(pitch * 0.5, t0 + 0.25);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+  o.connect(g).connect(Music.out);
+  o.start(t0);
+  o.stop(t0 + 0.4);
+  const len = Math.floor(ac.sampleRate * 0.05);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = ac.createBufferSource();
+  n.buffer = buf;
+  const ng = ac.createGain();
+  ng.gain.value = vol * 0.3;
+  n.connect(ng).connect(Music.out);
+  n.start(t0);
+}
+
+function musicTick() {
+  const ac = Snd.ctx;
+  if (!ac || !Music.out) return;
+  const battle = G.combatT > 0 && !G.paused;
+  while (Music.next < ac.currentTime + 0.5) {
+    const t0 = Music.next;
+    const st = Music.step % 64;
+    const bar = Math.floor(st / 16);
+    if (st === 0 && Math.floor(Music.step / 64) % 3 === 0) Music.phrase = makePhrase();
+    if (st % 16 === 0) musicDrone(ac, BASS[bar], t0, MUSIC_STEP * 16);
+    const s16 = st % 16;
+    if (s16 === 0 || s16 === 8) musicDrum(ac, t0, 0.22, 90);
+    if (s16 === 6 || s16 === 12) musicDrum(ac, t0, 0.1, 120);
+    if (battle && (s16 % 2 === 1 || s16 === 4 || s16 === 14)) musicDrum(ac, t0, s16 % 2 ? 0.07 : 0.15, 140);
+    const deg = Music.phrase[st];
+    if (deg >= 0 && !battle) musicVoice(ac, SCALE[deg], t0, MUSIC_STEP * 3, 0.045);
+    if (deg >= 0 && battle && st % 4 === 0) musicVoice(ac, SCALE[deg] / 2, t0, MUSIC_STEP * 2, 0.05);
+    Music.next += MUSIC_STEP;
+    Music.step++;
+  }
+}
+
+function startMusic() {
+  const ac = audioCtx();
+  if (!ac || !Music.on || Music.timer) return;
+  if (ac.state === 'suspended') ac.resume();
+  Music.out = ac.createGain();
+  Music.out.gain.value = 0.7;
+  Music.out.connect(ac.destination);
+  Music.next = ac.currentTime + 0.1;
+  Music.step = 0;
+  Music.phrase = makePhrase();
+  Music.timer = setInterval(musicTick, 120);
+}
+
+function stopMusic() {
+  if (Music.timer) clearInterval(Music.timer);
+  Music.timer = null;
+  const ac = Snd.ctx;
+  if (Music.out && ac) {
+    const g = Music.out;
+    g.gain.setValueAtTime(g.gain.value, ac.currentTime);
+    g.gain.linearRampToValueAtTime(0, ac.currentTime + 0.5);
+    setTimeout(() => g.disconnect(), 800);
+  }
+  Music.out = null;
+}
+
+function setMusic(on) {
+  Music.on = on;
+  storageSet('norsecraft.music', on ? '1' : '0');
+  $('music').classList.toggle('off', !on);
+  if (on) startMusic(); else stopMusic();
+}
 
 // ---------- screens ----------
 
@@ -90,6 +298,24 @@ function initTitle() {
     document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
   }));
   $('start').addEventListener('click', () => { audioCtx(); startGame(); });
+  $('continue').addEventListener('click', () => {
+    audioCtx();
+    const a = saveInfo('auto'), m = saveInfo('manual');
+    const slot = a && (!m || a.savedAt >= m.savedAt) ? 'auto' : 'manual';
+    resumeGame(slot);
+  });
+  $('save').addEventListener('click', () => {
+    $('save-note').textContent = saveGame('manual', UI.cam, UI.groups) ? 'Game saved.' : 'Could not save: this browser is blocking storage.';
+    refreshSaveButtons();
+  });
+  $('load').addEventListener('click', () => {
+    $('pause').style.display = 'none';
+    resumeGame('manual');
+  });
+  $('music').addEventListener('click', () => { audioCtx(); setMusic(!Music.on); });
+  Music.on = storageGet('norsecraft.music') !== '0';
+  $('music').classList.toggle('off', !Music.on);
+  refreshSaveButtons();
   $('help-btn').addEventListener('click', toggleHelp);
   $('help-close').addEventListener('click', toggleHelp);
   $('menu-btn').addEventListener('click', togglePause);
@@ -107,7 +333,7 @@ function initTitle() {
   // Faction preview portraits.
   for (const f of ['vikings', 'jotnar']) {
     const box = $('pv-' + f);
-    for (const t of ['worker', 'melee', 'ranged', 'rider', 'siege']) {
+    for (const t of ['worker', 'melee', 'ranged', 'rider', 'siege', 'caster']) {
       const c = document.createElement('canvas');
       c.width = 46; c.height = 46;
       box.appendChild(c);
@@ -116,7 +342,31 @@ function initTitle() {
   }
 }
 
+function refreshSaveButtons() {
+  const a = saveInfo('auto'), m = saveInfo('manual');
+  const best = a && (!m || a.savedAt >= m.savedAt) ? a : m;
+  $('continue-box').hidden = !best;
+  if (best) $('continue-info').textContent = best.text;
+  $('load').disabled = !m;
+  $('load').style.opacity = m ? '' : '0.5';
+  if (m) $('load').title = m.text;
+}
+
+function resumeGame(slot) {
+  let r;
+  try { r = loadSave(slot); } catch (e) { r = null; }
+  if (!r) { refreshSaveButtons(); return; }
+  Setup.faction = humanPlayer().faction;
+  enterGame();
+  UI.groups = r.groups;
+  if (r.cam) { UI.cam.x = r.cam.x; UI.cam.y = r.cam.y; clampCam(); }
+  msg('Game loaded.');
+}
+
 function toTitle() {
+  if (G.map && !G.over) saveGame('auto', UI.cam, UI.groups);
+  refreshSaveButtons();
+  stopMusic();
   $('pause').style.display = 'none';
   $('end').style.display = 'none';
   $('title').style.display = 'flex';
@@ -125,7 +375,19 @@ function toTitle() {
 
 function startGame() {
   newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed });
+  enterGame();
+  const hall = G.ents.find(e => e.type === 'hall' && e.owner === G.human);
+  centerOn(hall.x, hall.y);
+  const p = humanPlayer();
+  const foe = G.players[1];
+  msg(`The ${FACTIONS[foe.faction].short} gather beyond the fjord. Build up and destroy them!`);
+  msg(`Right-click the gold mine with your ${unitName('worker', p.faction)}s to start mining.`);
+}
+
+// Shared setup for a fresh or loaded game.
+function enterGame() {
   G.over = null;
+  G.autoT = 60;
   buildTerrain();
   UI.selected.clear();
   UI.groups = {};
@@ -134,16 +396,13 @@ function startGame() {
   UI.menu = 'main';
   UI.sig = '';
   G.endShown = false;
-  $('speed-sel').value = String(Setup.speed);
+  $('speed-sel').value = String(G.speed);
   $('title').style.display = 'none';
   $('end').style.display = 'none';
+  $('pause').style.display = 'none';
+  $('save-note').textContent = '';
   resize();
-  const hall = G.ents.find(e => e.type === 'hall' && e.owner === G.human);
-  centerOn(hall.x, hall.y);
-  const p = humanPlayer();
-  const foe = G.players[1];
-  msg(`The ${FACTIONS[foe.faction].short} gather beyond the fjord. Build up and destroy them!`);
-  msg(`Right-click the gold mine with your ${unitName('worker', p.faction)}s to start mining.`);
+  startMusic();
 }
 
 function toggleHelp() {
@@ -209,7 +468,11 @@ function frame(t) {
     while (acc >= STEP && n < 8) { tick(STEP); acc -= STEP; n++; }
     if (n >= 8) acc = 0;
   }
-  if (G.over && !G.endShown) setTimeout(showEnd, 1200), G.endShown = true;
+  if (G.over && !G.endShown) { setTimeout(showEnd, 1200); G.endShown = true; clearAutosave(); }
+  if (!G.over && !G.paused) {
+    G.autoT -= dt;
+    if (G.autoT <= 0) { G.autoT = 60; saveGame('auto', UI.cam, UI.groups); }
+  }
   scrollCamera(dt);
   if (UI.mouseWorld) UI.mouseWorld = toWorld(UI.mouse.x, UI.mouse.y);
   UI.hover = UI.mouse.in && UI.mouseWorld ? entityAt(UI.mouseWorld.x, UI.mouseWorld.y) : null;
@@ -228,6 +491,10 @@ function frame(t) {
 }
 
 window.addEventListener('resize', resize);
+// Keep the autosave fresh when the tab is hidden or closed.
+const autosaveNow = () => { if (G.map && !G.over && $('title').style.display === 'none') saveGame('auto', UI.cam, UI.groups); };
+window.addEventListener('pagehide', autosaveNow);
+document.addEventListener('visibilitychange', () => { if (document.hidden) autosaveNow(); });
 window.addEventListener('load', () => {
   initTitle();
   initInput();

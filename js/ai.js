@@ -3,13 +3,14 @@
 
 const AI_PLAN = [
   ['barracks', 1], ['farm', 2], ['mill', 1], ['farm', 3], ['stable', 1], ['forge', 1],
-  ['tower', 1], ['farm', 5], ['barracks', 2], ['tower', 2], ['farm', 7], ['farm', 9], ['farm', 11],
+  ['tower', 1], ['farm', 5], ['temple', 1], ['barracks', 2], ['tower', 2], ['farm', 7], ['farm', 9], ['farm', 11],
 ];
 
 class AI {
   constructor(pid, diffKey) {
     this.pid = pid;
-    this.diff = DIFFICULTY[diffKey] || DIFFICULTY.normal;
+    this.diffKey = DIFFICULTY[diffKey] ? diffKey : 'normal';
+    this.diff = DIFFICULTY[this.diffKey];
     this.t = 2;
     this.wave = this.diff.wave;
     this.waves = 0;
@@ -170,11 +171,13 @@ class AI {
     // Army.
     if (!saving) {
       for (const b of bldgs) {
-        if (b.type !== 'barracks' || !b.built || b.queue.length >= 2) continue;
-        const type = this.pickUnit(p, army);
+        if (!['barracks', 'temple'].includes(b.type) || !b.built || b.queue.length >= 2) continue;
+        const type = b.type === 'temple' ? (army.filter(u => u.type === 'caster').length < 3 ? 'caster' : null) : this.pickUnit(p, army);
         if (type && canAfford(p, UNITS[type]) && p.food + b.queue.length < p.foodCap) cmdTrain(b, type);
       }
     }
+
+    this.castSpells(army);
 
     // Defense: enemies close to home.
     const threat = this.findThreat(hall);
@@ -198,6 +201,26 @@ class AI {
     // Units already out in the field keep pushing.
     const field = army.filter(u => !u.order && !u.hidden && Math.hypot(u.x - hall.x, u.y - hall.y) >= TILE * 14);
     if (field.length) this.sendArmy(field, false);
+  }
+
+  castSpells(army) {
+    for (const u of army) {
+      if (u.type !== 'caster' || u.hidden || (u.order && u.order.type === 'cast')) continue;
+      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid &&
+        Math.hypot(e.x - u.x, e.y - u.y) < TILE * 8);
+      if (!near.length) continue;
+      if (spellReady(u, 'storm')) {
+        // Aim at the enemy with the most company around it.
+        let best = null, bn = 0;
+        for (const e of near) {
+          const n = near.filter(o => Math.hypot(o.x - e.x, o.y - e.y) < TILE * SPELLS.storm.radius).length;
+          if (n > bn) { bn = n; best = e; }
+        }
+        if (best && bn >= 2) { cmdCast([u], 'storm', tileOf(best)); continue; }
+      }
+      const p = G.players[this.pid];
+      if (spellReady(u, 'summon') && (!p.up.storm || u.mana >= SPELLS.storm.mana)) cmdCast([u], 'summon', null);
+    }
   }
 
   findThreat(hall) {

@@ -3,7 +3,7 @@
 
 const G = {
   map: null, ents: [], byId: new Map(), nextId: 1,
-  projectiles: [], effects: [], msgs: [],
+  projectiles: [], effects: [], areas: [], msgs: [],
   players: [], human: 0, time: 0, over: null,
   vis: null, explored: null, visT: 0, checkT: 0,
   ai: null, speed: 1, paused: false, attackMsgT: 0,
@@ -19,6 +19,7 @@ function newGame(opts) {
   G.nextId = 1;
   G.projectiles = [];
   G.effects = [];
+  G.areas = [];
   G.msgs = [];
   G.time = 0;
   G.over = null;
@@ -54,7 +55,7 @@ function newGame(opts) {
 function makePlayer(id, faction, ai) {
   return {
     id, faction, ai, gold: 600, wood: 400, food: 0, foodCap: 0,
-    up: { weapons: 0, armor: 0, arrows: 0 },
+    up: { weapons: 0, armor: 0, arrows: 0, summon: 0, storm: 0 },
     color: FACTIONS[faction].color, stats: { killed: 0, lost: 0, gold: 0, wood: 0 },
   };
 }
@@ -72,6 +73,8 @@ function spawnUnit(type, owner, tx, ty) {
     cd: 0, carry: null, hidden: false, inside: null, facing: owner === 0 ? 1 : -1,
     anim: Math.random() * 10, atkAnim: 0, scanT: Math.random() * 0.5, hitT: 0, hold: false,
   };
+  if (d.mana) u.mana = 50;
+  if (d.summon) u.life = SUMMON_LIFE;
   G.ents.push(u);
   G.byId.set(u.id, u);
   return u;
@@ -205,6 +208,14 @@ function updateUnit(u, dt) {
     }
     return;
   }
+  if (u.life != null) {
+    u.life -= dt;
+    if (u.life <= 0) { kill(u, null); return; }
+  }
+  if (u.mana != null) {
+    u.mana = Math.min(UNITS[u.type].mana, u.mana + MANA_REGEN * dt);
+    autoHeal(u, dt);
+  }
   u.cd -= dt;
   if (u.atkAnim > 0) u.atkAnim -= dt;
   if (u.hitT > 0) u.hitT -= dt;
@@ -219,6 +230,7 @@ function updateUnit(u, dt) {
     case 'gold': doGold(u, dt, o); break;
     case 'wood': doWood(u, dt, o); break;
     case 'build': doBuild(u, dt, o); break;
+    case 'cast': doCast(u, dt, o); break;
     case 'repair': doRepair(u, dt, o); break;
     default: u.order = null;
   }
@@ -326,6 +338,7 @@ function damage(src, t, atk, mult = 1) {
   if (t.kind === 'bldg' && sd && sd.bldgBonus) dmg *= sd.bldgBonus;
   t.hp -= dmg;
   t.hitT = 0.15;
+  if (t.owner === G.human || src.owner === G.human) G.combatT = 8;
   if (t.kind === 'unit') G.effects.push({ type: 'blood', x: t.x + (Math.random() - 0.5) * 8, y: t.y + 4, t: 0.5 });
   if (t.owner === G.human && src.owner !== G.human && G.attackMsgT <= 0) {
     G.attackMsgT = 15;
@@ -337,7 +350,7 @@ function damage(src, t, atk, mult = 1) {
   const attacker = G.byId.get(src.id);
   if (!alive(attacker) || attacker.hidden) return;
   if (t.kind === 'unit') {
-    if (!t.order && !t.hidden && (t.type !== 'worker' || attacker.kind === 'unit')) {
+    if (!t.order && !t.hidden && !t.hold && (t.type !== 'worker' || attacker.kind === 'unit')) {
       t.order = { type: 'attack', target: attacker.id, auto: true, home: { x: t.x, y: t.y }, repath: 0 };
     }
   }
@@ -359,8 +372,12 @@ function kill(t, src) {
     G.players[t.owner].stats.lost++;
   }
   if (t.kind === 'unit') {
-    G.effects.push({ type: 'corpse', x: t.x, y: t.y, t: 12, faction: G.players[t.owner].faction, color: G.players[t.owner].color });
-    if (!t.hidden) sfx('die');
+    if (t.life != null) {
+      G.effects.push({ type: 'poof', x: t.x, y: t.y, t: 0.8 });
+    } else {
+      G.effects.push({ type: 'corpse', x: t.x, y: t.y, t: 12, faction: G.players[t.owner].faction, color: G.players[t.owner].color });
+      if (!t.hidden) sfx('die');
+    }
     if (t.inside && t.inside.bldg) {
       const b = G.byId.get(t.inside.bldg);
       if (b && b.builder === t.id) b.builder = null;
@@ -680,7 +697,7 @@ function updateBuilding(b, dt) {
       if (q.unit) finishTraining(b, q.unit);
       else {
         p.up[q.research] = 1;
-        msg(`${RESEARCH[q.research].name} researched.`, b.owner);
+        msg(`${researchName(q.research, p.faction)} researched.`, b.owner);
         if (b.owner === G.human) sfx('done');
       }
       updateFood();
@@ -720,7 +737,7 @@ function updateFood() {
   for (const e of G.ents) {
     if (e.dead || e.owner < 0) continue;
     const p = G.players[e.owner];
-    if (e.kind === 'unit') p.food++;
+    if (e.kind === 'unit') { if (e.life == null) p.food++; }
     else {
       if (e.built && BUILDINGS[e.type].food) p.foodCap += BUILDINGS[e.type].food;
       if (e.queue.length && e.queue[0].unit && e.queue[0].started) p.food++;
@@ -904,6 +921,157 @@ function cmdCancel(b) {
   updateFood();
 }
 
+// ---------- magic ----------
+
+function spellReady(u, key) {
+  const sp = SPELLS[key];
+  const p = G.players[u.owner];
+  if (sp.req && !p.up[sp.req]) return false;
+  return u.mana >= sp.mana;
+}
+
+// Casters heal the most wounded ally in reach without dropping what they are doing.
+function autoHeal(u, dt) {
+  u.healScan = (u.healScan || 0) - dt;
+  // Once stronger spells are known, keep enough mana in reserve to cast them.
+  const up = G.players[u.owner].up;
+  const floor = up.summon || up.storm ? 75 : SPELLS.heal.mana;
+  if (u.healScan > 0 || u.mana < floor) return;
+  u.healScan = 0.5;
+  const ut = tileOf(u);
+  let best = null, worst = 14;
+  for (const e of G.ents) {
+    if (e.kind !== 'unit' || e.dead || e.hidden || e.owner !== u.owner) continue;
+    const missing = e.maxHp - e.hp;
+    if (missing <= worst) continue;
+    if (rectDist(ut.x, ut.y, entRect(e)) > SPELLS.heal.range) continue;
+    worst = missing;
+    best = e;
+  }
+  if (best) castHeal(u, best);
+}
+
+function castHeal(u, t) {
+  u.mana -= SPELLS.heal.mana;
+  t.hp = Math.min(t.maxHp, t.hp + SPELLS.heal.amount);
+  face(u, t);
+  u.atkAnim = 0.3;
+  G.effects.push({ type: 'heal', x: t.x, y: t.y, t: 1, faction: G.players[u.owner].faction });
+  if (u.owner === G.human || t.owner === G.human) sfx('heal');
+}
+
+function castSummon(u) {
+  u.mana -= SPELLS.summon.mana;
+  const faction = G.players[u.owner].faction;
+  const type = faction === 'vikings' ? 'einherjar' : 'wolf';
+  const t = tileOf(u);
+  const taken = new Set();
+  const out = [];
+  for (let i = 0; i < 2; i++) {
+    const sp = nearestWalkable(G.map, t.x + (i ? 1 : -1), t.y + 1, 4, (x, y) => taken.has(x + y * MAP_W));
+    if (!sp) continue;
+    taken.add(sp.x + sp.y * MAP_W);
+    const s = spawnUnit(type, u.owner, sp.x, sp.y);
+    s.facing = u.facing;
+    G.effects.push({ type: 'summon', x: s.x, y: s.y, t: 0.9, faction });
+    out.push(s);
+  }
+  u.atkAnim = 0.3;
+  if (u.owner === G.human) sfx('summon');
+  return out;
+}
+
+function castStorm(u, tx, ty) {
+  const sp = SPELLS.storm;
+  u.mana -= sp.mana;
+  const faction = G.players[u.owner].faction;
+  const thor = faction === 'vikings';
+  G.areas.push({
+    x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, r: sp.radius * TILE, owner: u.owner, src: u.id,
+    kind: thor ? 'storm' : 'blizzard', ticks: thor ? 4 : 8, interval: thor ? 0.45 : 0.5, t: 0.2, dmg: thor ? 15 : 8, age: 0,
+  });
+  u.atkAnim = 0.3;
+  if (u.owner === G.human || tileVisible(tx * TILE, ty * TILE)) sfx(thor ? 'thunder' : 'wind');
+}
+
+function updateAreas(dt) {
+  for (const a of G.areas) {
+    a.age += dt;
+    a.t -= dt;
+    if (a.t > 0) continue;
+    a.t = a.interval;
+    a.ticks--;
+    const src = { id: a.src, owner: a.owner, type: 'caster' };
+    for (const e of G.ents) {
+      if (e.dead || e.hidden || e.owner < 0 || e.owner === a.owner) continue;
+      let d;
+      if (e.kind === 'bldg') {
+        const cx = Math.max(e.tx * TILE, Math.min(a.x, (e.tx + e.w) * TILE));
+        const cy = Math.max(e.ty * TILE, Math.min(a.y, (e.ty + e.h) * TILE));
+        d = Math.hypot(a.x - cx, a.y - cy);
+      } else d = Math.hypot(e.x - a.x, e.y - a.y);
+      if (d > a.r) continue;
+      // Spell damage ignores armor; buildings take half.
+      damage(src, e, a.dmg + armorOf(e), e.kind === 'bldg' ? 0.5 : 1);
+    }
+    if (a.kind === 'storm') {
+      const ang = Math.random() * Math.PI * 2, rr = Math.random() * a.r * 0.8;
+      G.effects.push({ type: 'bolt', x: a.x + Math.cos(ang) * rr, y: a.y + Math.sin(ang) * rr, t: 0.25, seed: Math.random() * 1000 });
+      if (tileVisible(a.x, a.y)) sfx('zap');
+    }
+  }
+  G.areas = G.areas.filter(a => a.ticks > 0);
+}
+
+function doCast(u, dt, o) {
+  const sp = SPELLS[o.spell];
+  if (!spellReady(u, o.spell)) {
+    if (u.owner === G.human) msg(u.mana < sp.mana ? 'Not enough mana.' : 'That spell has not been learned yet.');
+    u.order = null;
+    return;
+  }
+  if (o.spell === 'summon') { castSummon(u); u.order = null; return; }
+  let rect;
+  if (o.spell === 'heal') {
+    const t = G.byId.get(o.target);
+    if (!alive(t) || t.hidden || t.hp >= t.maxHp) { u.order = null; return; }
+    rect = entRect(t);
+  } else rect = { x: o.x, y: o.y, w: 1, h: 1 };
+  const ut = tileOf(u);
+  if (rectDist(ut.x, ut.y, rect) <= sp.range) {
+    u.path = null;
+    if (o.spell === 'heal') castHeal(u, G.byId.get(o.target));
+    else castStorm(u, o.x, o.y);
+    u.order = null;
+    return;
+  }
+  o.repath = (o.repath || 0) - dt;
+  if (!u.path || u.pathI >= u.path.length || o.repath <= 0) {
+    const r = unitGoal(u, { ...rect, range: sp.range });
+    o.repath = 0.8;
+    if (!r.path.length && !r.reached) { u.order = null; return; }
+  }
+  stepMove(u, dt);
+}
+
+function cmdCast(units, spell, target) {
+  // Pick the caster best able to cast: enough mana, closest to the target.
+  const casters = units.filter(u => u.kind === 'unit' && !u.dead && !u.hidden && u.mana != null && spellReady(u, spell));
+  if (!casters.length) return 'No spellcaster has enough mana.';
+  let tx, ty;
+  if (target && target.id) { tx = target.x; ty = target.y; }
+  else if (target) { tx = target.x * TILE; ty = target.y * TILE; }
+  else { tx = casters[0].x; ty = casters[0].y; }
+  casters.sort((a, b) => Math.hypot(a.x - tx, a.y - ty) - Math.hypot(b.x - tx, b.y - ty));
+  const u = casters[0];
+  u.hold = false;
+  u.path = null;
+  if (spell === 'summon') { castSummon(u); return null; }
+  if (spell === 'heal') u.order = { type: 'cast', spell, target: target.id };
+  else u.order = { type: 'cast', spell, x: target.x, y: target.y };
+  return null;
+}
+
 // ---------- projectiles, effects ----------
 
 function updateProjectiles(dt) {
@@ -1007,6 +1175,13 @@ function isVisibleEnt(e) {
   return !!G.vis[G.map.idx(t.x, t.y)];
 }
 
+function tileVisible(px, py) {
+  if (G.revealAll) return true;
+  const x = Math.floor(px / TILE), y = Math.floor(py / TILE);
+  if (!G.map.inBounds(x, y)) return false;
+  return !!G.vis[y * MAP_W + x];
+}
+
 function checkVictory() {
   if (G.over) return;
   const aliveP = G.players.map(p => G.ents.some(e => !e.dead && e.owner === p.id));
@@ -1019,12 +1194,14 @@ function checkVictory() {
 function tick(dt) {
   G.time += dt;
   G.attackMsgT -= dt;
+  if (G.combatT > 0) G.combatT -= dt;
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.kind === 'unit') updateUnit(e, dt);
     else if (e.owner >= 0) updateBuilding(e, dt);
   }
   updateProjectiles(dt);
+  updateAreas(dt);
   separateUnits();
   for (const fx of G.effects) fx.t -= dt;
   G.effects = G.effects.filter(f => f.t > 0);

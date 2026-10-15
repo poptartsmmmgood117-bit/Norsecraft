@@ -154,6 +154,15 @@ function applyTargeting(w) {
     else if (G.map.isForest(tx, ty)) cmdGather(ws, null, { x: tx, y: ty });
     else { msg('Choose a gold mine or a forest.'); return; }
     marker(w.x, w.y, '#e8d050');
+  } else if (mode.startsWith('spell:')) {
+    const spell = mode.slice(6);
+    if (spell === 'heal') {
+      if (!target || target.kind !== 'unit' || target.owner !== G.human) { msg('Choose one of your units to heal.'); sfx('error'); return; }
+      if (target.hp >= target.maxHp) { msg('That unit is not wounded.'); return; }
+    }
+    const r = cmdCast(units, spell, spell === 'heal' ? target : { x: tx, y: ty });
+    if (r) { msg(r); sfx('error'); return; }
+    marker(w.x, w.y, '#7ab8ff');
   } else if (mode === 'repair') {
     const ws = units.filter(u => u.type === 'worker');
     if (!target || target.kind !== 'bldg' || target.owner !== G.human || target.hp >= target.maxHp) {
@@ -229,6 +238,24 @@ function getCommands() {
     if (units.some(u => u.type !== 'worker')) {
       cmds.push({ key: 'H', glyph: '⛨', name: 'Hold Position', desc: 'Stand ground and only attack enemies in range.', act: () => cmdHold(units) });
     }
+    const casters = units.filter(u => u.mana != null);
+    if (casters.length) {
+      const glyphs = { heal: '✚', summon: f === 'vikings' ? 'ᛟ' : '🐺', storm: f === 'vikings' ? 'ϟ' : '❄' };
+      for (const key of ['heal', 'summon', 'storm']) {
+        const sp = SPELLS[key];
+        const learned = !sp.req || p.up[sp.req];
+        cmds.push({
+          key: sp.hotkey, glyph: glyphs[key], name: spellName(key, f), mana: sp.mana,
+          desc: sp.desc + (learned ? '' : ` <em>Learn it at the ${bldgName('temple', f)}.</em>`),
+          disabled: !learned, poor: !casters.some(u => u.mana >= sp.mana),
+          act: () => {
+            if (!casters.some(u => u.mana >= sp.mana)) { msg('Not enough mana.'); sfx('error'); return; }
+            if (key === 'summon') { const r = cmdCast(casters, 'summon', null); if (r) { msg(r); sfx('error'); } }
+            else UI.targeting = 'spell:' + key;
+          },
+        });
+      }
+    }
     if (workers.length) {
       cmds.push({ key: 'G', glyph: '⛏', name: 'Gather', desc: 'Mine gold or chop lumber. (Right-click a mine or forest.)', act: () => { UI.targeting = 'gather'; } });
       if (workers.some(u => u.carry)) cmds.push({ key: 'R', glyph: '⤺', name: 'Return Goods', desc: 'Carry resources back to the nearest drop-off.', act: () => cmdReturn(workers) });
@@ -260,7 +287,7 @@ function getCommands() {
       const st = researchState(p.id, key);
       if (st === 'done') continue;
       cmds.push({
-        key: rd.hotkey, glyph: key === 'weapons' ? '🗡' : key === 'armor' ? '🛡' : '➶', name: rd.name, cost: rd, desc: rd.desc,
+        key: rd.hotkey, glyph: { weapons: '🗡', armor: '🛡', arrows: '➶', summon: f === 'vikings' ? 'ᛟ' : '🐺', storm: f === 'vikings' ? 'ϟ' : '❄' }[key], name: researchName(key, f), cost: rd, desc: rd.desc,
         disabled: st !== 'open', poor: !canAfford(p, rd),
         act: () => { const b = pickB(); const r = b && cmdResearch(b, key); if (r) { msg(r); sfx('error'); } else sfx('click'); },
       });
@@ -287,7 +314,8 @@ function commandSig() {
     if (e.kind === 'bldg') parts.push(e.queue.map(q => q.unit || q.research).join(','));
   }
   for (const t of BUILD_ORDER) parts.push(hasBuilt(G.human, t) ? 1 : 0);
-  parts.push(p.up.weapons, p.up.armor, p.up.arrows);
+  parts.push(p.up.weapons, p.up.armor, p.up.arrows, p.up.summon, p.up.storm);
+  for (const e of UI.selected) if (e.mana != null) parts.push(Math.floor(e.mana / 10));
   parts.push(Math.floor(p.gold / 10), Math.floor(p.wood / 10));
   return parts.join('|');
 }
@@ -344,6 +372,7 @@ function buildCommandCard() {
 function showTip(c) {
   const t = $('tip');
   let h = `<b>${c.name}</b> <span class="key">[${c.label || c.key}]</span>`;
+  if (c.mana) h += `<div class="cost"><span class="m">${c.mana} mana</span></div>`;
   if (c.cost) h += `<div class="cost">${costText(c.cost)}${c.cost.time ? ` <span class="t">${c.cost.time}s</span>` : ''}</div>`;
   if (c.desc) h += `<div>${c.desc}</div>`;
   if (c.stats) {
@@ -390,13 +419,27 @@ function buildInfoPanel() {
       const d = defOf(e);
       const st = document.createElement('div');
       st.className = 'stats';
+      const extras = [];
       if (e.kind === 'unit') {
         st.innerHTML = `Attack ${atkOf(e)} · Armor ${armorOf(e)}<br>Range ${d.range} · Sight ${d.sight} · Speed ${d.speed}`;
         if (e.carry) st.innerHTML += `<br>Carrying ${e.carry.amt} ${e.carry.res === 'gold' ? 'gold' : 'lumber'}`;
+        if (e.life != null) st.innerHTML += '<br><span class="life"></span>';
+        if (e.mana != null) {
+          const mb = document.createElement('div');
+          mb.className = 'mana';
+          const mf = document.createElement('div');
+          mb.appendChild(mf);
+          const ml = document.createElement('div');
+          ml.className = 'plabel';
+          extras.push(ml, mb);
+          UI.liveEls.push(() => { ml.textContent = `Mana ${Math.floor(e.mana)} / ${d.mana}`; mf.style.width = (e.mana / d.mana * 100) + '%'; });
+        }
+        if (e.life != null) UI.liveEls.push(() => { const l = st.querySelector('.life'); if (l) l.textContent = `Fades in ${Math.ceil(e.life)}s`; });
       } else {
         st.innerHTML = `Armor ${armorOf(e)}` + (d.atk ? ` · Attack ${atkOf(e)} · Range ${d.range}` : '') + (d.food ? ` · Food +${d.food}` : '');
       }
       el.appendChild(st);
+      for (const x of extras) el.appendChild(x);
       if (e.kind === 'bldg' && (!e.built || e.queue.length)) {
         const box = document.createElement('div');
         box.className = 'queue';
@@ -426,7 +469,7 @@ function buildInfoPanel() {
           if (!e.built) { label.textContent = 'Under construction' + (e.builder ? '' : ' (no worker)'); fill.style.width = (e.progress * 100) + '%'; return; }
           const q = e.queue[0];
           if (!q) { label.textContent = ''; fill.style.width = '0'; return; }
-          const nm = q.unit ? unitName(q.unit, f) : RESEARCH[q.research].name;
+          const nm = q.unit ? unitName(q.unit, f) : researchName(q.research, f);
           const blocked = q.unit && !q.started;
           label.textContent = blocked ? `${nm} — waiting for food` : `${q.unit ? 'Training' : 'Researching'} ${nm}`;
           fill.style.width = (q.t / q.time * 100) + '%';
@@ -485,7 +528,7 @@ function updateLive() {
   if (m.innerHTML !== html) m.innerHTML = html;
   const view = $('view');
   view.style.cursor = UI.targeting ? 'crosshair' : UI.placing ? 'copy' : (UI.hover && UI.hover.owner >= 0 && UI.hover.owner !== G.human && selUnits().length ? 'crosshair' : 'default');
-  $('mode').textContent = UI.targeting ? { move: 'Choose destination', attack: 'Choose target', gather: 'Choose a mine or forest', repair: 'Choose a damaged building' }[UI.targeting] + ' — Esc to cancel'
+  $('mode').textContent = UI.targeting ? { move: 'Choose destination', attack: 'Choose target', gather: 'Choose a mine or forest', repair: 'Choose a damaged building', 'spell:heal': 'Choose a wounded unit to heal', 'spell:storm': 'Choose where to strike' }[UI.targeting] + ' — Esc to cancel'
     : UI.placing ? `Place ${bldgName(UI.placing, p.faction)} — Shift to place several, Esc to cancel` : '';
 }
 

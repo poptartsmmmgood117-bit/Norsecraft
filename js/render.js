@@ -487,6 +487,63 @@ function drawUnitSprite(ctx, type, faction, color, o) {
       ctx.beginPath(); ctx.moveTo(8, -15); ctx.lineTo(4 - pull, -7); ctx.lineTo(8, 1); ctx.stroke();
       ctx.fillStyle = color; ctx.fillRect(-12, -4, 5, 3);
     }
+  } else if (type === 'caster') {
+    shadow(ctx, 7);
+    // Long robe instead of legs.
+    const sway = Math.sin(o.walk) * 1.5;
+    ctx.fillStyle = giant ? '#cfe6ef' : '#3c3550';
+    ctx.beginPath();
+    ctx.moveTo(-5, -7); ctx.lineTo(5, -7); ctx.lineTo(6 + sway, 10); ctx.lineTo(-6 + sway, 10); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = color; ctx.fillRect(-5, -1, 10, 2);
+    head(ctx, faction, { helm: false, r: 3.8 });
+    // Hood or ice crown.
+    if (giant) {
+      ctx.fillStyle = '#eaf7fc';
+      for (const hx of [-3, 0, 3]) { ctx.beginPath(); ctx.moveTo(hx - 1.5, -13); ctx.lineTo(hx, -18 - (hx === 0 ? 2 : 0)); ctx.lineTo(hx + 1.5, -13); ctx.fill(); }
+    } else {
+      ctx.fillStyle = '#2a2438';
+      ctx.beginPath(); ctx.arc(0, -11, 4.8, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
+    }
+    // Staff with a glowing head.
+    const lift = o.atk > 0 ? -3 : 0;
+    ctx.strokeStyle = giant ? '#9ec4d6' : '#6b4a2b';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(6, 9); ctx.lineTo(6, -14 + lift); ctx.stroke();
+    const glow = giant ? '#9fe8ff' : '#ffd86a';
+    ctx.fillStyle = glow;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = o.atk > 0 ? 12 : 6;
+    ctx.beginPath(); ctx.arc(6, -15 + lift, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (type === 'einherjar') {
+    // A ghostly huscarl.
+    ctx.globalAlpha *= 0.75;
+    ctx.fillStyle = 'rgba(150,200,255,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, 0, 9, 13, 0, 0, Math.PI * 2); ctx.fill();
+    legs(ctx, o.walk, '#7d93b3');
+    torso(ctx, '#9fb4cf');
+    ctx.fillStyle = color; ctx.fillRect(-5, -4, 10, 3);
+    head(ctx, 'vikings');
+    axe(ctx, swing, true);
+    roundShield(ctx, '#c9d8ea');
+  } else if (type === 'wolf') {
+    shadow(ctx, 10);
+    const s = Math.sin(o.walk * 1.4) * 3;
+    ctx.strokeStyle = '#6d7980';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (const lx of [-6, -2, 4, 7]) { ctx.moveTo(lx, 2); ctx.lineTo(lx + (lx % 2 ? s : -s), 9); }
+    ctx.stroke();
+    ctx.fillStyle = '#b9c8cf';
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(10, -3, 5, 3.6, -0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(8, -6); ctx.lineTo(9, -10); ctx.lineTo(11, -6); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-9, -1); ctx.quadraticCurveTo(-15, -6 - swing * 3, -14, 1); ctx.fill();
+    ctx.fillStyle = '#f4f1e6'; ctx.fillRect(13, -1, 2, 1.2);
+    ctx.fillStyle = '#5ad0ff'; ctx.fillRect(11, -4.5, 1.4, 1.4);
+    ctx.fillStyle = color; ctx.fillRect(5, -4, 3, 6);
   }
   ctx.restore();
   void F;
@@ -697,6 +754,36 @@ function drawBuildingArt(ctx, type, faction, color, w, h) {
       banner(ctx, W / 2 + 2, ice ? -16 : -18, color);
       break;
     }
+    case 'temple': {
+      if (ice) {
+        // Standing stones around a glowing ice altar.
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath(); ctx.ellipse(W / 2 + 2, H - 8, W * 0.45, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#c9e4ee';
+        ctx.beginPath(); ctx.ellipse(W / 2, H - 14, W * 0.42, 12, 0, 0, Math.PI * 2); ctx.fill();
+        for (const [sx, sy, sh] of [[8, H - 16, 22], [W - 14, H - 16, 22], [14, H - 26, 18], [W - 20, H - 26, 18]]) {
+          ctx.fillStyle = '#8d969b'; ctx.fillRect(sx, sy - sh, 7, sh);
+          ctx.fillStyle = '#e6f1f5'; ctx.fillRect(sx, sy - sh, 7, 3);
+        }
+        ctx.fillStyle = '#7dbbd4';
+        ctx.beginPath(); ctx.moveTo(W / 2 - 8, H - 12); ctx.lineTo(W / 2, H - 46); ctx.lineTo(W / 2 + 8, H - 12); ctx.fill();
+        ctx.fillStyle = '#d6f6ff';
+        ctx.beginPath(); ctx.moveTo(W / 2 - 3, H - 14); ctx.lineTo(W / 2, H - 40); ctx.lineTo(W / 2 + 3, H - 14); ctx.fill();
+      } else {
+        // A small stave hof with stacked roofs.
+        house(ctx, 6, 22, W - 12, H - 24, P, { wallFrac: 0.5 });
+        ctx.fillStyle = P.roof;
+        ctx.beginPath(); ctx.moveTo(14, 26); ctx.lineTo(W / 2, 4); ctx.lineTo(W - 14, 26); ctx.fill();
+        ctx.fillStyle = P.roof2;
+        ctx.beginPath(); ctx.moveTo(W / 2 - 8, 12); ctx.lineTo(W / 2, -6); ctx.lineTo(W / 2 + 8, 12); ctx.fill();
+        dragonHead(ctx, 16, 24, -1);
+        dragonHead(ctx, W - 16, 24, 1);
+        ctx.fillStyle = '#ffd86a';
+        ctx.fillRect(W / 2 - 2, 30, 4, 4);
+      }
+      banner(ctx, W - 6, H - 4, color);
+      break;
+    }
     case 'mine': {
       mound(ctx, 2, 6, W - 4, H - 6, '#6e655c', '#8a7f74');
       ctx.fillStyle = '#18120c';
@@ -791,11 +878,32 @@ function drawUnit(ctx, u) {
   ctx.save();
   ctx.translate(Math.round(u.x), Math.round(u.y));
   const moving = u.path && u.pathI < u.path.length;
+  if (u.life != null && u.life < 6) ctx.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(G.time * 8));
   drawUnitSprite(ctx, u.type, p.faction, p.color, {
     dir: u.facing, walk: moving ? u.anim : 0, atk: u.atkAnim > 0 ? u.atkAnim : 0,
     carry: u.carry ? u.carry.res : null, chop: u.chopping, scale: 1,
   });
   ctx.restore();
+}
+
+function drawArea(ctx, a) {
+  if (a.kind === 'storm') {
+    const g = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.r);
+    g.addColorStop(0, 'rgba(40,45,70,0.45)');
+    g.addColorStop(1, 'rgba(40,45,70,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(225,240,250,0.28)';
+    ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let i = 0; i < 40; i++) {
+      const ang = hash2(i, 1, 5) * Math.PI * 2 + a.age * (1.5 + hash2(i, 2, 5));
+      const rr = hash2(i, 3, 5) * a.r;
+      const fall = (a.age * 60 + hash2(i, 4, 5) * 40) % 40;
+      ctx.fillRect(a.x + Math.cos(ang) * rr, a.y + Math.sin(ang) * rr * 0.6 - 20 + fall, 2, 2);
+    }
+  }
 }
 
 function drawHpBar(ctx, x, y, w, frac) {
@@ -817,6 +925,15 @@ function drawSelection(ctx, e, color) {
 }
 
 function drawProjectile(ctx, pr) {
+  if (pr.kind === 'magic') {
+    const c = pr.faction === 'jotnar' ? '#9fe8ff' : '#ffd86a';
+    ctx.fillStyle = c;
+    ctx.shadowColor = c;
+    ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
   if (pr.kind === 'arrow') {
     const a = Math.atan2(pr.ty - pr.y, pr.tx - pr.x);
     ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(a);
@@ -876,6 +993,48 @@ function drawEffect(ctx, fx, layer) {
     ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.4 + k * 0.8), 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(90,90,90,${Math.max(0, 0.5 - k * 0.5)})`;
     ctx.beginPath(); ctx.arc(fx.x, fx.y - k * 20, fx.r * 0.6, 0, Math.PI * 2); ctx.fill();
+  } else if (fx.type === 'heal') {
+    const k = 1 - fx.t;
+    const c = fx.faction === 'jotnar' ? '159,232,255' : '255,226,120';
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + k * 3;
+      ctx.fillStyle = `rgba(${c},${1 - k})`;
+      ctx.beginPath(); ctx.arc(fx.x + Math.cos(a) * 9, fx.y - k * 24 + Math.sin(a) * 4, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(120,240,140,${1 - k})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(fx.x - 4, fx.y - 14 - k * 10); ctx.lineTo(fx.x + 4, fx.y - 14 - k * 10);
+    ctx.moveTo(fx.x, fx.y - 18 - k * 10); ctx.lineTo(fx.x, fx.y - 10 - k * 10); ctx.stroke();
+  } else if (fx.type === 'summon') {
+    const k = 1 - fx.t / 0.9;
+    const c = fx.faction === 'jotnar' ? '159,232,255' : '200,220,255';
+    ctx.fillStyle = `rgba(${c},${0.6 * (1 - k)})`;
+    ctx.beginPath(); ctx.ellipse(fx.x, fx.y + 6, 6 + k * 14, 3 + k * 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(fx.x - 3 + k * 2, fx.y - 40 * (1 - k), 6 - k * 4, 46 * (1 - k));
+  } else if (fx.type === 'poof') {
+    const k = 1 - fx.t / 0.8;
+    ctx.fillStyle = `rgba(200,215,230,${0.6 * (1 - k)})`;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.arc(fx.x + (i - 1.5) * 5, fx.y - k * 16 - i * 2, 4 + k * 5, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (fx.type === 'bolt') {
+    const k = fx.t / 0.25;
+    ctx.strokeStyle = `rgba(255,250,200,${k})`;
+    ctx.shadowColor = '#bfe0ff';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    let bx = fx.x, by = fx.y - 160;
+    ctx.moveTo(bx, by);
+    for (let i = 1; i <= 8; i++) {
+      bx = fx.x + (hash2(i, fx.seed | 0, 9) - 0.5) * 22 * (1 - i / 8);
+      by = fx.y - 160 + i * 20;
+      ctx.lineTo(bx, by);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(255,250,200,${k * 0.5})`;
+    ctx.beginPath(); ctx.ellipse(fx.x, fx.y, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
   } else if (fx.type === 'marker') {
     const k = fx.t / 0.6;
     ctx.strokeStyle = fx.color;
@@ -906,6 +1065,7 @@ function render(ctx, cam, vw, vh, ui) {
     else drawUnit(ctx, e);
   }
   for (const pr of G.projectiles) if (inView(pr)) drawProjectile(ctx, pr);
+  for (const a of G.areas) if (inView(a) && tileVisible(a.x, a.y)) drawArea(ctx, a);
   for (const fx of G.effects) if (inView(fx)) drawEffect(ctx, fx, 1);
 
   // Fog of war.
@@ -937,6 +1097,10 @@ function render(ctx, cam, vw, vh, ui) {
       }
     } else {
       drawHpBar(ctx, e.x - 10, e.y - 26, 20, e.hp / e.maxHp);
+      if (e.mana != null && (sel.has(e) || e.owner === G.human)) {
+        ctx.fillStyle = '#111'; ctx.fillRect(e.x - 11, e.y - 22, 22, 4);
+        ctx.fillStyle = '#4a8cff'; ctx.fillRect(e.x - 10, e.y - 21, 20 * e.mana / UNITS[e.type].mana, 2);
+      }
     }
   }
 
@@ -984,12 +1148,6 @@ function render(ctx, cam, vw, vh, ui) {
   }
 }
 
-function tileVisible(px, py) {
-  if (G.revealAll) return true;
-  const x = Math.floor(px / TILE), y = Math.floor(py / TILE);
-  if (!G.map.inBounds(x, y)) return false;
-  return !!G.vis[y * MAP_W + x];
-}
 
 // Small portrait/icon renderer used by the UI.
 function drawIcon(canvas, kind, type, faction, color) {

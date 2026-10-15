@@ -32,6 +32,7 @@
         <option value="1.5">Fast</option>
         <option value="2">Fastest</option>
       </select>
+      <button id="music" title="Music on/off">♫</button>
       <button id="mute" title="Sound on/off">🔊</button>
       <button id="help-btn" title="Help (F1)">?</button>
       <button id="menu-btn" title="Menu (F10)">Menu</button>
@@ -51,12 +52,12 @@
       <button class="faction on" data-faction="vikings">
         <h3>Vikings of Midgard</h3>
         <div class="pv" id="pv-vikings"></div>
-        <p>Raiders of the fjords, sworn to Odin. Shield walls, longbows, Valkyrie riders and ballistae.</p>
+        <p>Raiders of the fjords, sworn to Odin. Shield walls, longbows, Valkyrie riders, ballistae and seeresses who call on Thor.</p>
       </button>
       <button class="faction" data-faction="jotnar">
         <h3>Jötnar of Jötunheim</h3>
         <div class="pv" id="pv-jotnar"></div>
-        <p>Frost giants and their brood, come down from the ice. Trolls, wolf riders and boulder-hurling stone giants.</p>
+        <p>Frost giants and their brood, come down from the ice. Trolls, wolf riders, boulder-hurling stone giants and shamans of the Fimbulwinter.</p>
       </button>
     </div>
     <div class="row">
@@ -72,6 +73,10 @@
       <button class="opt" data-speed="1.5">Fast</button>
     </div>
     <button id="start" class="big">Begin the Saga</button>
+    <div id="continue-box" hidden>
+      <button id="continue" class="big alt">Continue</button>
+      <p id="continue-info" class="fine"></p>
+    </div>
     <p class="fine">Best played with a mouse and keyboard on a desktop browser.</p>
   </div>
 </div>
@@ -87,6 +92,8 @@
       <tr><td>A, then click</td><td>Attack-move: fight everything on the way</td></tr>
       <tr><td>B</td><td>Build menu (with workers selected)</td></tr>
       <tr><td>E, then click</td><td>Repair a damaged building (or right-click it with workers)</td></tr>
+      <tr><td>E / U / T</td><td>Spellcasters: heal, summon, storm</td></tr>
+      <tr><td>Menu → Save game</td><td>Save; the game also autosaves every minute</td></tr>
       <tr><td>Ctrl+1–9 / 1–9</td><td>Assign / recall control groups (tap twice to jump)</td></tr>
       <tr><td>. (period)</td><td>Cycle idle workers</td></tr>
       <tr><td>Space</td><td>Jump to last attack or selection</td></tr>
@@ -94,7 +101,7 @@
       <tr><td>Esc</td><td>Cancel</td></tr>
       <tr><td>P or F10</td><td>Pause</td></tr>
     </table>
-    <p>Tip: every unit needs food — build farms. Ranged units need a lumber workshop, riders a stable, siege a forge.</p>
+    <p>Tip: every unit needs food — build farms. Ranged units need a lumber workshop, riders a stable, siege a forge and spellcasters a temple.</p>
     <button id="help-close" class="big">Close</button>
   </div>
 </div>
@@ -103,6 +110,9 @@
   <div class="panel small">
     <h2>Paused</h2>
     <button id="resume" class="big">Resume</button>
+    <button id="save" class="big">Save game</button>
+    <button id="load" class="big">Load saved game</button>
+    <p id="save-note" class="fine"></p>
     <button id="restart" class="big">Restart</button>
     <button id="quit" class="big">Quit to title</button>
   </div>
@@ -123,6 +133,7 @@
 <script src="js/path.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/save.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>

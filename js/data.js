@@ -67,6 +67,44 @@ const UNITS = {
     names: { vikings: 'Ballista', jotnar: 'Stone Giant' },
     desc: 'Long-range siege that hurts everything near the impact. Requires a forge.',
   },
+  caster: {
+    hp: 45, atk: 5, armor: 0, range: 4, cd: 1.4, speed: 1.5, sight: 7, mana: 100,
+    gold: 120, wood: 60, time: 20, hotkey: 'C', req: ['temple'], projectile: 'magic',
+    names: { vikings: 'Völva', jotnar: 'Frost Shaman' },
+    desc: 'Spellcaster. Heals allies automatically; learns summoning and storm magic at the temple.',
+  },
+  // Summoned by spells only; they fade when their time runs out.
+  einherjar: {
+    hp: 55, atk: 8, armor: 2, range: 1, cd: 1.0, speed: 1.8, sight: 5, summon: true,
+    names: { vikings: 'Einherjar', jotnar: 'Einherjar' },
+    desc: "A fallen warrior called back from Valhalla. Fades after 45 seconds.",
+  },
+  wolf: {
+    hp: 45, atk: 7, armor: 1, range: 1, cd: 0.8, speed: 2.6, sight: 6, summon: true,
+    names: { vikings: 'Frost Wolf', jotnar: 'Frost Wolf' },
+    desc: 'A wolf of the Ironwood. Fades after 45 seconds.',
+  },
+};
+
+const MANA_REGEN = 0.8;
+const SUMMON_LIFE = 45;
+
+const SPELLS = {
+  heal: {
+    mana: 20, range: 5, hotkey: 'E', amount: 40,
+    names: { vikings: "Eir's Mending", jotnar: 'Rime Mending' },
+    desc: 'Restore 40 health to a friendly unit. Cast automatically on nearby wounded allies.',
+  },
+  summon: {
+    mana: 50, hotkey: 'U', req: 'summon',
+    names: { vikings: 'Call the Einherjar', jotnar: 'Frost Wolves' },
+    desc: 'Summon two warriors that fight beside you for 45 seconds.',
+  },
+  storm: {
+    mana: 70, range: 7, hotkey: 'T', req: 'storm', radius: 2,
+    names: { vikings: "Thor's Storm", jotnar: 'Fimbulwinter' },
+    desc: 'Batter an area with lightning or a blizzard, hurting enemies inside it for a few seconds.',
+  },
 };
 
 const BUILDINGS = {
@@ -112,18 +150,32 @@ const BUILDINGS = {
     names: { vikings: 'Watchtower', jotnar: 'Ice Spire' },
     desc: 'Defensive tower that shoots nearby enemies.',
   },
+  temple: {
+    w: 2, h: 2, hp: 600, armor: 1, gold: 150, wood: 150, time: 30, sight: 5,
+    hotkey: 'H', req: ['barracks'], trains: ['caster'], research: ['summon', 'storm'],
+    names: { vikings: 'Hof', jotnar: 'Rime Shrine' },
+    desc: 'Trains spellcasters and teaches them stronger magic.',
+  },
   mine: {
     w: 3, h: 3, hp: 99999, armor: 99, sight: 0, neutral: true,
     names: { vikings: 'Gold Mine', jotnar: 'Gold Mine', neutral: 'Gold Mine' },
   },
 };
 
-const BUILD_ORDER = ['hall', 'farm', 'barracks', 'mill', 'stable', 'forge', 'tower'];
+const BUILD_ORDER = ['hall', 'farm', 'barracks', 'mill', 'stable', 'forge', 'temple', 'tower'];
 
 const RESEARCH = {
   weapons: { gold: 200, wood: 100, time: 30, hotkey: 'E', name: 'Runed Blades', desc: '+2 attack for melee fighters and riders.' },
   armor: { gold: 200, wood: 150, time: 30, hotkey: 'A', name: 'Iron Mail', desc: '+1 armor for all units.' },
   arrows: { gold: 150, wood: 150, time: 26, hotkey: 'U', name: 'Barbed Arrows', desc: '+2 attack for ranged units and towers.' },
+  summon: {
+    gold: 200, wood: 100, time: 35, hotkey: 'N', names: { vikings: 'Call the Einherjar', jotnar: 'Frost Wolves' },
+    desc: 'Teaches spellcasters to summon two warriors for 45 seconds.',
+  },
+  storm: {
+    gold: 250, wood: 150, time: 40, hotkey: 'T', names: { vikings: "Thor's Storm", jotnar: 'Fimbulwinter' },
+    desc: 'Teaches spellcasters to strike an area with a damaging storm.',
+  },
 };
 
 const DIFFICULTY = {
@@ -133,4 +185,6 @@ const DIFFICULTY = {
 };
 
 function unitName(type, faction) { return UNITS[type].names[faction]; }
+function researchName(key, faction) { const r = RESEARCH[key]; return r.names ? r.names[faction] : r.name; }
+function spellName(key, faction) { return SPELLS[key].names[faction]; }
 function bldgName(type, faction) { return BUILDINGS[type].names[faction] || BUILDINGS[type].names.vikings; }

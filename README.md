@@ -29,6 +29,7 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | Ranged | Bowman | Ice Hurler | Lumber workshop |
 | Rider | Valkyrie | Wolf Rider | Stable |
 | Siege | Ballista | Stone Giant | Forge |
+| Spellcaster | Völva | Frost Shaman | Temple |
 
 | Building | Vikings | Jötnar |
 |---|---|---|
@@ -39,8 +40,20 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | Stable | Stable | Wolf Den |
 | Forge | Smithy | Frost Forge |
 | Tower | Watchtower | Ice Spire |
+| Temple | Hof | Rime Shrine |
 
 - **Upgrades:** Runed Blades, Iron Mail and Barbed Arrows.
+- **Magic:** spellcasters use mana, which refills over time. Every caster knows a heal, which it also casts by itself on wounded allies nearby. Two more spells are learned at the temple:
+
+| Spell | Vikings | Jötnar | Mana |
+|---|---|---|---|
+| Heal (`E`) | Eir's Mending | Rime Mending | 20 |
+| Summon (`U`) | Call the Einherjar: 2 ghostly warriors | Frost Wolves: 2 wolves | 50 |
+| Storm (`T`) | Thor's Storm: short, heavy lightning | Fimbulwinter: a longer blizzard | 70 |
+
+  Summoned units fade after 45 seconds and cost no food.
+- **Save and load** from the pause menu. The game also autosaves every minute and when you leave the page, so **Continue** on the title screen picks up where you left off. Saves stay in your browser.
+- **Music and voices:** a generated Norse score (drone, frame drum and lyre) that picks up drums during battle, plus short voice replies from your units. Both are made in code; toggle music with ♫.
 - **Computer opponent** with Easy, Normal and Hard settings. It runs an economy, builds a base, defends itself and attacks in growing waves.
 - Fog of war, minimap, control groups, attack-move, rally points, hold position, and procedurally generated mirrored maps.
 
@@ -53,7 +66,8 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | Right-click | Move / attack / gather / return goods / set rally point |
 | `A` then click | Attack-move |
 | `B` | Build menu (workers) |
-| `E` then click | Repair a damaged building (workers) |
+| `E` then click | Repair a damaged building (workers) / heal (casters) |
+| `U`, `T` | Summon / storm (casters) |
 | `Ctrl+1–9`, `1–9` | Control groups (tap twice to jump) |
 | `.` | Cycle idle workers |
 | `Space` | Jump to last attack or to the selection |
