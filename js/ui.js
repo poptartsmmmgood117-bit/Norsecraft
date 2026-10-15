@@ -113,6 +113,14 @@ function rightClickAt(w) {
     if (target && target.kind === 'bldg' && target.owner === G.human && target.built) {
       const d = BUILDINGS[target.type];
       const carriers = workers.filter(u => u.carry && d.dropoff && d.dropoff.includes(u.carry.res));
+      if (target.hp < target.maxHp) {
+        if (carriers.length) cmdReturn(carriers);
+        cmdRepair(workers.filter(u => !carriers.includes(u)), target);
+        if (others.length) cmdMove(others, tx, ty, false);
+        marker(w.x, w.y, '#5cf05c');
+        sfx('ack');
+        return;
+      }
       if (carriers.length) {
         cmdReturn(carriers);
         const rest = units.filter(u => !carriers.includes(u));
@@ -146,6 +154,15 @@ function applyTargeting(w) {
     else if (G.map.isForest(tx, ty)) cmdGather(ws, null, { x: tx, y: ty });
     else { msg('Choose a gold mine or a forest.'); return; }
     marker(w.x, w.y, '#e8d050');
+  } else if (mode === 'repair') {
+    const ws = units.filter(u => u.type === 'worker');
+    if (!target || target.kind !== 'bldg' || target.owner !== G.human || target.hp >= target.maxHp) {
+      msg('Choose one of your damaged buildings.');
+      sfx('error');
+      return;
+    }
+    cmdRepair(ws, target);
+    marker(w.x, w.y, '#5cf05c');
   }
   sfx('ack');
 }
@@ -215,6 +232,7 @@ function getCommands() {
     if (workers.length) {
       cmds.push({ key: 'G', glyph: '⛏', name: 'Gather', desc: 'Mine gold or chop lumber. (Right-click a mine or forest.)', act: () => { UI.targeting = 'gather'; } });
       if (workers.some(u => u.carry)) cmds.push({ key: 'R', glyph: '⤺', name: 'Return Goods', desc: 'Carry resources back to the nearest drop-off.', act: () => cmdReturn(workers) });
+      cmds.push({ key: 'E', glyph: '🔨', name: 'Repair', desc: 'Fix a damaged building. A full repair costs about a third of its price. (Right-click a damaged building.)', act: () => { UI.targeting = 'repair'; } });
       cmds.push({ key: 'B', glyph: '⚒', name: 'Build', desc: 'Construct a building.', act: () => { UI.menu = 'build'; } });
     }
     return cmds;
@@ -467,7 +485,7 @@ function updateLive() {
   if (m.innerHTML !== html) m.innerHTML = html;
   const view = $('view');
   view.style.cursor = UI.targeting ? 'crosshair' : UI.placing ? 'copy' : (UI.hover && UI.hover.owner >= 0 && UI.hover.owner !== G.human && selUnits().length ? 'crosshair' : 'default');
-  $('mode').textContent = UI.targeting ? { move: 'Choose destination', attack: 'Choose target', gather: 'Choose a mine or forest' }[UI.targeting] + ' — Esc to cancel'
+  $('mode').textContent = UI.targeting ? { move: 'Choose destination', attack: 'Choose target', gather: 'Choose a mine or forest', repair: 'Choose a damaged building' }[UI.targeting] + ' — Esc to cancel'
     : UI.placing ? `Place ${bldgName(UI.placing, p.faction)} — Shift to place several, Esc to cancel` : '';
 }
 

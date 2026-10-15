@@ -219,6 +219,7 @@ function updateUnit(u, dt) {
     case 'gold': doGold(u, dt, o); break;
     case 'wood': doWood(u, dt, o); break;
     case 'build': doBuild(u, dt, o); break;
+    case 'repair': doRepair(u, dt, o); break;
     default: u.order = null;
   }
 }
@@ -570,6 +571,46 @@ function doWood(u, dt, o) {
   }
 }
 
+// Repairing restores hit points over time and costs 35% of the building's
+// price for a full repair, paid as the work happens.
+function doRepair(u, dt, o) {
+  const b = G.byId.get(o.bid);
+  if (!alive(b) || b.kind !== 'bldg' || b.owner !== u.owner) { u.order = null; u.chopping = false; return; }
+  if (!b.built) { u.order = { type: 'build', bid: b.id }; u.path = null; u.chopping = false; return; }
+  if (b.hp >= b.maxHp) { u.order = null; u.chopping = false; return; }
+  if (tileDist(u, b) > 1) {
+    u.chopping = false;
+    if (!u.path) {
+      const r = unitGoal(u, { ...entRect(b), range: 1 });
+      if (!r.path.length && !r.reached) { u.order = null; return; }
+    }
+    if (stepMove(u, dt) && tileDist(u, b) > 1) u.order = null;
+    return;
+  }
+  u.path = null;
+  face(u, b);
+  u.chopping = true;
+  u.anim += dt * 3;
+  const d = BUILDINGS[b.type];
+  const p = G.players[u.owner];
+  const heal = b.maxHp / d.time * 0.6 * dt;
+  const frac = heal / b.maxHp;
+  o.owe = o.owe || { gold: 0, wood: 0 };
+  o.owe.gold += (d.gold || 0) * 0.35 * frac;
+  o.owe.wood += (d.wood || 0) * 0.35 * frac;
+  const g = Math.floor(o.owe.gold), w = Math.floor(o.owe.wood);
+  if (p.gold < g || p.wood < w) {
+    msg('Not enough ' + (p.gold < g ? 'gold' : 'lumber') + ' to keep repairing.', u.owner);
+    u.order = null;
+    u.chopping = false;
+    return;
+  }
+  p.gold -= g; p.wood -= w;
+  o.owe.gold -= g; o.owe.wood -= w;
+  b.hp = Math.min(b.maxHp, b.hp + heal);
+  if (b.hp >= b.maxHp && u.owner === G.human) sfx('done');
+}
+
 function doBuild(u, dt, o) {
   const b = G.byId.get(o.bid);
   if (!alive(b) || b.built) { u.order = null; return; }
@@ -752,6 +793,16 @@ function cmdReturn(units) {
   }
 }
 
+function cmdRepair(units, b) {
+  for (const u of units) {
+    if (u.kind !== 'unit' || u.type !== 'worker' || u.hidden || u.dead) continue;
+    u.hold = false;
+    u.path = null;
+    u.chopping = false;
+    u.order = { type: 'repair', bid: b.id };
+  }
+}
+
 function cmdStop(units) {
   for (const u of units) {
     if (u.kind !== 'unit' || u.hidden) continue;
@@ -892,7 +943,7 @@ function updateProjectiles(dt) {
 
 function separateUnits() {
   // Workers on a gathering trip pass through each other, as in the classics.
-  const busy = u => u.type === 'worker' && u.order && (u.order.type === 'gold' || u.order.type === 'wood' || u.order.type === 'build');
+  const busy = u => u.type === 'worker' && u.order && (u.order.type === 'gold' || u.order.type === 'wood' || u.order.type === 'build' || u.order.type === 'repair');
   const us = G.ents.filter(e => e.kind === 'unit' && !e.dead && !e.hidden && !busy(e));
   const R = 14;
   for (let i = 0; i < us.length; i++) {

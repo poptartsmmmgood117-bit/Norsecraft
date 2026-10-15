@@ -19,6 +19,7 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 ## The game
 
 - **Economy:** mine gold and chop lumber with workers. Build farms for food (each unit costs 1).
+- **Repair:** workers fix damaged buildings (right-click it, or `E`). A full repair costs about a third of the building's price.
 - **Two mirrored factions**, each with its own units and buildings:
 
 | Role | Vikings | Jötnar | Needs |
@@ -52,6 +53,7 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | Right-click | Move / attack / gather / return goods / set rally point |
 | `A` then click | Attack-move |
 | `B` | Build menu (workers) |
+| `E` then click | Repair a damaged building (workers) |
 | `Ctrl+1–9`, `1–9` | Control groups (tap twice to jump) |
 | `.` | Cycle idle workers |
 | `Space` | Jump to last attack or to the selection |

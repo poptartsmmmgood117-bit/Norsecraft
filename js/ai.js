@@ -128,6 +128,17 @@ class AI {
       if (w) { w.order = { type: 'build', bid: b.id }; w.path = null; w.carry = null; }
     }
 
+    // Repair damaged buildings once the fighting nearby is over.
+    if (p.gold > 100 && p.wood > 50) {
+      for (const b of bldgs) {
+        if (!b.built || b.hp >= b.maxHp * 0.9) continue;
+        if (workers.some(w => w.order && w.order.type === 'repair' && w.order.bid === b.id)) continue;
+        if (G.ents.some(e => !e.dead && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid && Math.hypot(e.x - b.x, e.y - b.y) < TILE * 8)) continue;
+        const w = this.pickBuilder(workers.filter(w => !(w.order && w.order.type === 'repair')), b);
+        if (w) { cmdRepair([w], b); break; }
+      }
+    }
+
     // Construction.
     const building = bldgs.filter(b => !b.built).length;
     const maxParallel = this.diff.workers >= 12 ? 2 : 1;
