@@ -108,10 +108,10 @@ class GameMap {
     this.carveLine(M.x, M.y, W / 2 + 11, H / 2 - 10, 1, T.GRASS);
 
     // Base clearings with a forest edge.
-    this.clearArea(P.x - 6, P.y - 6, 13, 13);
+    this.clearArea(P.x - 6, P.y - 6, 14, 14);
     this.blob(P.x + 9, P.y - 3, 4, T.FOREST, rng);
     this.blob(P.x - 3, P.y + 9, 4, T.FOREST, rng);
-    this.clearArea(E.x - 6, E.y - 6, 13, 13);
+    this.clearArea(E.x - 7, E.y - 7, 14, 14);
 
     // Middle expansions.
     this.clearArea(W / 2 - 15, H / 2 + 6, 7, 7);
@@ -130,8 +130,8 @@ class GameMap {
 
     this.starts = [{ x: P.x - 1, y: P.y - 1 }, { x: E.x - 1, y: E.y - 1 }];
     this.mines = [
-      { x: P.x + 3, y: P.y + 3 },
-      { x: E.x - 5, y: E.y - 5 },
+      { x: P.x + 5, y: P.y + 5 },
+      { x: E.x - 7, y: E.y - 7 },
       { x: W / 2 - 13, y: H / 2 + 8 },
       { x: W / 2 + 10, y: H / 2 - 11 },
     ];

@@ -71,7 +71,7 @@ const UNITS = {
 
 const BUILDINGS = {
   hall: {
-    w: 3, h: 3, hp: 1200, armor: 2, gold: 400, wood: 250, time: 45, food: 5, sight: 6,
+    w: 3, h: 3, hp: 1200, armor: 2, gold: 400, wood: 250, time: 45, food: 5, sight: 8,
     hotkey: 'L', trains: ['worker'], dropoff: ['gold', 'wood'],
     names: { vikings: 'Longhouse', jotnar: 'Frost Hall' },
     desc: 'Trains workers. Gold and lumber are returned here.',
@@ -127,9 +127,9 @@ const RESEARCH = {
 };
 
 const DIFFICULTY = {
-  easy: { gather: 0.8, firstAttack: 360, wave: 4, waveGrow: 1, workers: 7, think: 1.6 },
-  normal: { gather: 1.0, firstAttack: 240, wave: 5, waveGrow: 2, workers: 9, think: 1.0 },
-  hard: { gather: 1.3, firstAttack: 160, wave: 6, waveGrow: 2, workers: 12, think: 0.7 },
+  easy: { gather: 0.75, firstAttack: 540, wave: 3, waveGrow: 1, workers: 7, think: 1.6 },
+  normal: { gather: 1.0, firstAttack: 360, wave: 5, waveGrow: 2, workers: 9, think: 1.0 },
+  hard: { gather: 1.3, firstAttack: 210, wave: 6, waveGrow: 2, workers: 12, think: 0.7 },
 };
 
 function unitName(type, faction) { return UNITS[type].names[faction]; }
