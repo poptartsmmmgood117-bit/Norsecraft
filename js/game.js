@@ -891,7 +891,9 @@ function updateProjectiles(dt) {
 }
 
 function separateUnits() {
-  const us = G.ents.filter(e => e.kind === 'unit' && !e.dead && !e.hidden);
+  // Workers on a gathering trip pass through each other, as in the classics.
+  const busy = u => u.type === 'worker' && u.order && (u.order.type === 'gold' || u.order.type === 'wood' || u.order.type === 'build');
+  const us = G.ents.filter(e => e.kind === 'unit' && !e.dead && !e.hidden && !busy(e));
   const R = 14;
   for (let i = 0; i < us.length; i++) {
     const a = us[i];
@@ -904,11 +906,12 @@ function separateUnits() {
       if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }
       const push = (R - d) * 0.25;
       const nx = dx / d * push, ny = dy / d * push;
+      // Only units standing still get nudged aside; anything walking keeps
+      // walking, so units can never shove each other into a standstill.
       const aMoving = a.path && a.pathI < a.path.length;
       const bMoving = b.path && b.pathI < b.path.length;
-      const fa = aMoving && !bMoving ? 0.2 : 1, fb = bMoving && !aMoving ? 0.2 : 1;
-      tryShift(a, -nx * fa, -ny * fa);
-      tryShift(b, nx * fb, ny * fb);
+      if (!aMoving) tryShift(a, -nx, -ny);
+      if (!bMoving) tryShift(b, nx, ny);
     }
   }
 }
