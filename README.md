@@ -54,8 +54,26 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
   Summoned units fade after 45 seconds and cost no food.
 - **Save and load** from the pause menu. The game also autosaves every minute and when you leave the page, so **Continue** on the title screen picks up where you left off. Saves stay in your browser.
 - **Music and voices:** a generated Norse score (drone, frame drum and lyre) that picks up drums during battle, plus short voice replies from your units. Both are made in code; toggle music with ♫.
-- **Computer opponent** with Easy, Normal and Hard settings. It runs an economy, builds a base, defends itself and attacks in growing waves.
+- **Computer opponent** with Beginner, Easy, Normal and Hard settings. It runs an economy, builds a base, defends itself and attacks in growing waves.
 - Fog of war, minimap, control groups, attack-move, rally points, hold position, and procedurally generated mirrored maps.
+
+## Play on a phone or tablet
+
+Open the GitHub Pages link in Safari (iPhone/iPad) or Chrome (Android) and add it to your home screen:
+
+- **iPhone / iPad:** Share button → **Add to Home Screen**.
+- **Android:** ⋮ menu → **Add to Home screen** / **Install app**.
+
+It then opens full screen from its own icon, like an app, and works offline after the first visit. Play with the phone held sideways.
+
+| Touch | Action |
+|---|---|
+| Tap | Select a unit, or command the selected units (move, attack, mine, chop, repair) |
+| Double-tap a unit | Select all of that type on screen |
+| Drag | Scroll the map |
+| Pinch | Zoom |
+| Hold, then drag | Selection box (hold and release to deselect) |
+| Tap a button | Use it and show what it does |
 
 ## Controls
 
@@ -72,6 +90,7 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | `.` | Cycle idle workers |
 | `Space` | Jump to last attack or to the selection |
 | Arrows / screen edge / middle-drag / wheel | Scroll |
+| `+` / `-`, ctrl+wheel | Zoom |
 | `P` / `F10` | Pause · `F1` help |
 
 ## Code layout
@@ -85,7 +104,9 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 | `js/ai.js` | Computer opponent |
 | `js/render.js` | Procedural terrain, sprites, effects, minimap |
 | `js/ui.js` | Input, selection, command card, info panel |
-| `js/main.js` | Game loop, synthesized audio, menus |
+| `js/main.js` | Game loop, synthesized music and voices, menus |
+| `js/save.js` | Save, load and autosave |
+| `sw.js`, `manifest.webmanifest`, `icons/` | Home-screen app and offline support |
 
 Debug URL flags: `?autostart`, `?reveal` (no fog), `?ai=normal` (the computer plays your side too), `&speed=4`, `&faction=jotnar`.
 

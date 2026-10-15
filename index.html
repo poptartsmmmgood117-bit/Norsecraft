@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Norsecraft</title>
+<meta name="description" content="A real-time strategy saga of Vikings and frost giants.">
+<meta name="theme-color" content="#1b150f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Norsecraft">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -23,6 +32,7 @@
       <div class="res"><i class="ico gold"></i><span id="gold">0</span></div>
       <div class="res"><i class="ico wood"></i><span id="wood">0</span></div>
       <div class="res"><i class="ico food"></i><span id="food">0</span></div>
+      <button id="idle-btn" title="Next idle worker (.)">Idle <span id="idle-n">0</span></button>
       <div id="mode"></div>
       <div class="spacer"></div>
       <span id="clock">0:00</span>
@@ -62,6 +72,7 @@
     </div>
     <div class="row">
       <span class="lbl">Foe</span>
+      <button class="opt" data-diff="beginner">Beginner</button>
       <button class="opt" data-diff="easy">Easy</button>
       <button class="opt on" data-diff="normal">Normal</button>
       <button class="opt" data-diff="hard">Hard</button>
@@ -81,6 +92,8 @@
   </div>
 </div>
 
+<div id="rotate" class="overlay"><div><span class="ph">📱</span>Turn your phone sideways to play</div></div>
+
 <div id="help" class="overlay">
   <div class="panel help-panel">
     <h2>How to play</h2>
@@ -98,9 +111,19 @@
       <tr><td>. (period)</td><td>Cycle idle workers</td></tr>
       <tr><td>Space</td><td>Jump to last attack or selection</td></tr>
       <tr><td>Arrows / screen edge / middle-drag</td><td>Scroll the map</td></tr>
+      <tr><td>+ / − or pinch</td><td>Zoom in and out</td></tr>
       <tr><td>Esc</td><td>Cancel</td></tr>
       <tr><td>P or F10</td><td>Pause</td></tr>
     </table>
+    <h3 class="touch-h">On a phone or tablet</h3>
+    <table>
+      <tr><td>Tap</td><td>Select a unit, or command the selected units (move, attack, mine, chop)</td></tr>
+      <tr><td>Double-tap a unit</td><td>Select all of that type on screen</td></tr>
+      <tr><td>Drag</td><td>Scroll the map · Pinch to zoom</td></tr>
+      <tr><td>Hold, then drag</td><td>Draw a selection box (hold and release to deselect)</td></tr>
+      <tr><td>Tap a button</td><td>Shows what it does and uses it</td></tr>
+    </table>
+    <p>There are four gold mines: one at each base and two out in the wilds, marked in gold on the minimap.</p>
     <p>Tip: every unit needs food — build farms. Ranged units need a lumber workshop, riders a stable, siege a forge and spellcasters a temple.</p>
     <button id="help-close" class="big">Close</button>
   </div>

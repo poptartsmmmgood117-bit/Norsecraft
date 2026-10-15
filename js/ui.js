@@ -5,32 +5,45 @@ const UI = {
   selected: new Set(), hover: null, placing: null, placer: null, targeting: null,
   drag: null, pan: null, mouse: { x: -1, y: -1, in: false }, mouseWorld: null,
   groups: {}, lastGroup: { n: -1, t: 0 }, menu: 'main', cam: { x: 0, y: 0 }, vw: 800, vh: 600,
-  keys: {}, sig: '', liveEls: [], tipFor: null,
+  keys: {}, sig: '', liveEls: [], tipFor: null, zoom: 1,
 };
+
+// Size of the visible world area, which shrinks or grows with zoom.
+function viewW() { return UI.vw / UI.zoom; }
+function viewH() { return UI.vh / UI.zoom; }
+
+function setZoom(z, sx, sy) {
+  z = Math.max(0.55, Math.min(1.6, z));
+  const before = toWorld(sx, sy);
+  UI.zoom = z;
+  UI.cam.x = before.x - sx / z;
+  UI.cam.y = before.y - sy / z;
+  clampCam();
+}
 
 const $ = id => document.getElementById(id);
 
 function clampCam() {
-  UI.cam.x = Math.max(0, Math.min(MAP_W * TILE - UI.vw, UI.cam.x));
-  UI.cam.y = Math.max(0, Math.min(MAP_H * TILE - UI.vh, UI.cam.y));
-  if (UI.vw > MAP_W * TILE) UI.cam.x = (MAP_W * TILE - UI.vw) / 2;
-  if (UI.vh > MAP_H * TILE) UI.cam.y = (MAP_H * TILE - UI.vh) / 2;
+  UI.cam.x = Math.max(0, Math.min(MAP_W * TILE - viewW(), UI.cam.x));
+  UI.cam.y = Math.max(0, Math.min(MAP_H * TILE - viewH(), UI.cam.y));
+  if (viewW() > MAP_W * TILE) UI.cam.x = (MAP_W * TILE - viewW()) / 2;
+  if (viewH() > MAP_H * TILE) UI.cam.y = (MAP_H * TILE - viewH()) / 2;
 }
 
 function centerOn(x, y) {
-  UI.cam.x = x - UI.vw / 2;
-  UI.cam.y = y - UI.vh / 2;
+  UI.cam.x = x - viewW() / 2;
+  UI.cam.y = y - viewH() / 2;
   clampCam();
 }
 
-function toWorld(sx, sy) { return { x: sx + UI.cam.x, y: sy + UI.cam.y }; }
+function toWorld(sx, sy) { return { x: sx / UI.zoom + UI.cam.x, y: sy / UI.zoom + UI.cam.y }; }
 
 function entityAt(wx, wy) {
   let best = null, bd = 1e9;
   for (const e of G.ents) {
     if (e.dead || e.hidden || e.kind !== 'unit' || !isVisibleEnt(e)) continue;
     const d = Math.hypot(e.x - wx, e.y - 2 - wy);
-    const r = e.type === 'rider' || e.type === 'siege' ? 16 : 12;
+    const r = (e.type === 'rider' || e.type === 'siege' ? 16 : 12) + (UI.touch ? 8 : 0);
     if (d < r && d < bd) { bd = d; best = e; }
   }
   if (best) return best;
@@ -362,7 +375,12 @@ function buildCommandCard() {
     k.className = 'hk';
     k.textContent = c.label || c.key;
     b.appendChild(k);
-    b.addEventListener('click', ev => { ev.stopPropagation(); if (!c.disabled) { c.act(); UI.sig = ''; } else sfx('error'); });
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      // Touch screens have no hover, so flash the tooltip on tap.
+      if (UI.touch) { showTip(c); clearTimeout(UI.tipT); UI.tipT = setTimeout(hideTip, 2500); }
+      if (!c.disabled) { c.act(); UI.sig = ''; } else sfx('error');
+    });
     b.addEventListener('mouseenter', () => showTip(c));
     b.addEventListener('mouseleave', hideTip);
     el.appendChild(b);
@@ -520,6 +538,9 @@ function updateLive() {
   $('gold').textContent = Math.floor(p.gold);
   $('wood').textContent = Math.floor(p.wood);
   $('food').textContent = `${p.food} / ${p.foodCap}`;
+  const idleN = G.ents.filter(u => !u.dead && !u.hidden && u.owner === G.human && u.type === 'worker' && !u.order).length;
+  $('idle-n').textContent = idleN;
+  $('idle-btn').classList.toggle('has', idleN > 0);
   $('food').parentElement.classList.toggle('warn', p.food >= p.foodCap);
   const t = Math.floor(G.time);
   $('clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
@@ -534,10 +555,42 @@ function updateLive() {
 
 // ---------- input wiring ----------
 
+function selectBox(d) {
+  const a = toWorld(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1));
+  const b = toWorld(Math.max(d.x0, d.x1), Math.max(d.y0, d.y1));
+  const inBox = G.ents.filter(u => !u.dead && !u.hidden && u.kind === 'unit' && u.owner === G.human &&
+    u.x >= a.x - 6 && u.x <= b.x + 6 && u.y >= a.y - 6 && u.y <= b.y + 6);
+  if (inBox.length) setSelection(inBox, d.shift);
+  else if (!d.shift) {
+    const bl = G.ents.filter(u => !u.dead && u.kind === 'bldg' && u.owner === G.human &&
+      u.x >= a.x && u.x <= b.x && u.y >= a.y && u.y <= b.y);
+    setSelection(bl.slice(0, 1), false);
+  }
+  UI.sig = '';
+}
+
+function selectSameOnScreen(t) {
+  const same = G.ents.filter(u => !u.dead && !u.hidden && u.owner === G.human && u.type === t.type && u.kind === t.kind &&
+    u.x >= UI.cam.x && u.x <= UI.cam.x + viewW() && u.y >= UI.cam.y && u.y <= UI.cam.y + viewH());
+  setSelection(t.kind === 'unit' ? same : [t]);
+  UI.sig = '';
+}
+
+function cycleIdleWorker() {
+  const idle = G.ents.filter(u => !u.dead && !u.hidden && u.owner === G.human && u.type === 'worker' && !u.order);
+  if (!idle.length) { msg('No idle workers.'); return; }
+  UI.idleIdx = ((UI.idleIdx || 0) + 1) % idle.length;
+  const u = idle[UI.idleIdx];
+  setSelection([u]);
+  centerOn(u.x, u.y);
+  UI.sig = '';
+}
+
 function initInput() {
   const view = $('view');
   view.addEventListener('contextmenu', e => e.preventDefault());
   $('minimap').addEventListener('contextmenu', e => e.preventDefault());
+  $('idle-btn').addEventListener('click', () => { if (G.map && !G.over) cycleIdleWorker(); });
 
   view.addEventListener('mousedown', e => {
     if (G.over || G.paused) return;
@@ -567,8 +620,8 @@ function initInput() {
       if (Math.abs(sx - UI.drag.x0) + Math.abs(sy - UI.drag.y0) > 6) UI.drag.active = true;
     }
     if (UI.pan) {
-      UI.cam.x = UI.pan.cx - (sx - UI.pan.x);
-      UI.cam.y = UI.pan.cy - (sy - UI.pan.y);
+      UI.cam.x = UI.pan.cx - (sx - UI.pan.x) / UI.zoom;
+      UI.cam.y = UI.pan.cy - (sy - UI.pan.y) / UI.zoom;
       clampCam();
     }
   });
@@ -579,16 +632,7 @@ function initInput() {
     const d = UI.drag;
     UI.drag = null;
     if (d.active) {
-      const a = toWorld(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1));
-      const b = toWorld(Math.max(d.x0, d.x1), Math.max(d.y0, d.y1));
-      const inBox = G.ents.filter(u => !u.dead && !u.hidden && u.kind === 'unit' && u.owner === G.human &&
-        u.x >= a.x - 6 && u.x <= b.x + 6 && u.y >= a.y - 6 && u.y <= b.y + 6);
-      if (inBox.length) setSelection(inBox, d.shift);
-      else if (!d.shift) {
-        const bl = G.ents.filter(u => !u.dead && u.kind === 'bldg' && u.owner === G.human &&
-          u.x >= a.x && u.x <= b.x && u.y >= a.y && u.y <= b.y);
-        setSelection(bl.slice(0, 1), false);
-      }
+      selectBox(d);
     } else {
       const w = toWorld(d.x0, d.y0);
       const e2 = entityAt(w.x, w.y);
@@ -607,16 +651,19 @@ function initInput() {
     const w = toWorld(e.clientX - r.left, e.clientY - r.top);
     const t = entityAt(w.x, w.y);
     if (!t || t.owner !== G.human) return;
-    const same = G.ents.filter(u => !u.dead && !u.hidden && u.owner === G.human && u.type === t.type && u.kind === t.kind &&
-      u.x >= UI.cam.x && u.x <= UI.cam.x + UI.vw && u.y >= UI.cam.y && u.y <= UI.cam.y + UI.vh);
-    setSelection(t.kind === 'unit' ? same : [t]);
-    UI.sig = '';
+    selectSameOnScreen(t);
   });
 
   view.addEventListener('wheel', e => {
     e.preventDefault();
-    UI.cam.x += e.deltaX;
-    UI.cam.y += e.deltaY;
+    // Trackpad pinches arrive as ctrl+wheel.
+    if (e.ctrlKey) {
+      const r = view.getBoundingClientRect();
+      setZoom(UI.zoom * Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top);
+      return;
+    }
+    UI.cam.x += e.deltaX / UI.zoom;
+    UI.cam.y += e.deltaY / UI.zoom;
     clampCam();
   }, { passive: false });
 
@@ -638,6 +685,7 @@ function initInput() {
   view.addEventListener('mouseleave', () => { UI.mouse.in = false; });
 
   window.addEventListener('keydown', onKey);
+  initTouch();
   window.addEventListener('keyup', e => { UI.keys[e.key] = false; });
   window.addEventListener('blur', () => { UI.keys = {}; UI.mouse.in = false; });
 }
@@ -676,17 +724,9 @@ function onKey(e) {
     else if (s) centerOn(s.x, s.y);
     return;
   }
-  if (e.key === '.' ) {
-    const idle = G.ents.filter(u => !u.dead && !u.hidden && u.owner === G.human && u.type === 'worker' && !u.order);
-    if (idle.length) {
-      UI.idleIdx = ((UI.idleIdx || 0) + 1) % idle.length;
-      const u = idle[UI.idleIdx];
-      setSelection([u]);
-      centerOn(u.x, u.y);
-      UI.sig = '';
-    } else msg('No idle workers.');
-    return;
-  }
+  if (e.key === '.') { cycleIdleWorker(); return; }
+  if (e.key === '+' || e.key === '=') { setZoom(UI.zoom * 1.15, UI.vw / 2, UI.vh / 2); return; }
+  if (e.key === '-' || e.key === '_') { setZoom(UI.zoom / 1.15, UI.vw / 2, UI.vh / 2); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const cmds = UI.cmds || [];
   const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
@@ -714,4 +754,124 @@ function scrollCamera(dt) {
     if (UI.mouse.y > UI.vh - m) dy += sp;
   }
   if (dx || dy) { UI.cam.x += dx; UI.cam.y += dy; clampCam(); }
+}
+
+// ---------- touch ----------
+// Tap selects or commands, one-finger drag pans, press-and-hold then drag
+// draws a selection box, and two fingers pinch to zoom.
+
+const Touch = { mode: null, start: null, timer: null, pinch: null, lastTap: { t: 0, id: 0 } };
+
+function touchTap(sx, sy) {
+  const w = toWorld(sx, sy);
+  if (UI.targeting) { applyTargeting(w); UI.sig = ''; return; }
+  const e = entityAt(w.x, w.y);
+  const units = selUnits();
+  const workers = units.filter(u => u.type === 'worker');
+  const now = performance.now();
+  const ownTarget = e && e.owner === G.human;
+  // With workers selected, tapping a site or damaged building of ours means "help with it".
+  const workTarget = ownTarget && e.kind === 'bldg' && workers.length && (!e.built || e.hp < e.maxHp);
+  if (ownTarget && !workTarget) {
+    if (Touch.lastTap.id === e.id && now - Touch.lastTap.t < 350) selectSameOnScreen(e);
+    else setSelection([e]);
+    Touch.lastTap = { t: now, id: e.id };
+  } else if (units.length) {
+    rightClickAt(w);
+  } else if (e) {
+    setSelection([e]);
+  } else {
+    setSelection([]);
+  }
+  UI.sig = '';
+}
+
+function initTouch() {
+  const view = $('view');
+  const pos = t => { const r = view.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  const markTouch = () => {
+    if (!UI.touch) { UI.touch = true; document.body.classList.add('touch'); }
+    if (typeof Snd !== 'undefined' && Snd.ctx && Snd.ctx.state === 'suspended') Snd.ctx.resume();
+  };
+
+  view.addEventListener('touchstart', e => {
+    e.preventDefault();
+    markTouch();
+    if (G.over || G.paused) return;
+    if (e.touches.length >= 2) {
+      clearTimeout(Touch.timer);
+      UI.drag = null;
+      const a = pos(e.touches[0]), b = pos(e.touches[1]);
+      Touch.mode = 'pinch';
+      Touch.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: UI.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      return;
+    }
+    const p = pos(e.touches[0]);
+    Touch.start = { x: p.x, y: p.y, cx: UI.cam.x, cy: UI.cam.y };
+    UI.mouse.x = p.x; UI.mouse.y = p.y;
+    UI.mouseWorld = toWorld(p.x, p.y);
+    if (UI.placing) { Touch.mode = 'place'; return; }
+    Touch.mode = 'pending';
+    clearTimeout(Touch.timer);
+    Touch.timer = setTimeout(() => {
+      if (Touch.mode !== 'pending') return;
+      Touch.mode = 'box';
+      UI.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, active: true, shift: false };
+      if (navigator.vibrate) navigator.vibrate(12);
+    }, 380);
+  }, { passive: false });
+
+  view.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (Touch.mode === 'pinch' && e.touches.length >= 2) {
+      const a = pos(e.touches[0]), b = pos(e.touches[1]);
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      UI.cam.x -= (mx - Touch.pinch.mx) / UI.zoom;
+      UI.cam.y -= (my - Touch.pinch.my) / UI.zoom;
+      Touch.pinch.mx = mx; Touch.pinch.my = my;
+      setZoom(Touch.pinch.z * d / Touch.pinch.d, mx, my);
+      return;
+    }
+    if (!e.touches.length) return;
+    const p = pos(e.touches[0]);
+    UI.mouse.x = p.x; UI.mouse.y = p.y;
+    UI.mouseWorld = toWorld(p.x, p.y);
+    if (Touch.mode === 'place') return;
+    if (Touch.mode === 'box') { UI.drag.x1 = p.x; UI.drag.y1 = p.y; return; }
+    const s = Touch.start;
+    if (!s) return;
+    if (Touch.mode === 'pending' && Math.hypot(p.x - s.x, p.y - s.y) > 10) { Touch.mode = 'pan'; clearTimeout(Touch.timer); }
+    if (Touch.mode === 'pan') {
+      UI.cam.x = s.cx - (p.x - s.x) / UI.zoom;
+      UI.cam.y = s.cy - (p.y - s.y) / UI.zoom;
+      clampCam();
+    }
+  }, { passive: false });
+
+  const end = e => {
+    e.preventDefault();
+    clearTimeout(Touch.timer);
+    if (Touch.mode === 'pinch') { if (!e.touches.length) Touch.mode = null; return; }
+    const mode = Touch.mode;
+    Touch.mode = null;
+    if (e.type === 'touchcancel' || G.over || G.paused) { UI.drag = null; return; }
+    if (mode === 'place') { tryPlace(toWorld(UI.mouse.x, UI.mouse.y), false); UI.sig = ''; return; }
+    if (mode === 'box' && UI.drag) { selectBox(UI.drag); UI.drag = null; return; }
+    if (mode === 'pending' && Touch.start) touchTap(Touch.start.x, Touch.start.y);
+  };
+  view.addEventListener('touchend', end, { passive: false });
+  view.addEventListener('touchcancel', end, { passive: false });
+
+  const mm = $('minimap');
+  const mmTouch = e => {
+    e.preventDefault();
+    markTouch();
+    if (G.over || !e.touches.length) return;
+    const r = mm.getBoundingClientRect();
+    const t = e.touches[0];
+    centerOn((t.clientX - r.left) / r.width * MAP_W * TILE, (t.clientY - r.top) / r.height * MAP_H * TILE);
+  };
+  mm.addEventListener('touchstart', mmTouch, { passive: false });
+  mm.addEventListener('touchmove', mmTouch, { passive: false });
 }

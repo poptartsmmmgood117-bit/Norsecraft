@@ -228,6 +228,14 @@ function drawMinimap(ctx, cam, vw, vh) {
       }
     }
   }
+  // Gold mines are common knowledge, so they show through the fog.
+  for (const e of G.ents) {
+    if (e.dead || e.type !== 'mine') continue;
+    ctx.fillStyle = '#1a1206';
+    ctx.fillRect(e.tx * sx - 1, e.ty * sy - 1, e.w * sx + 2, e.h * sy + 2);
+    ctx.fillStyle = '#f1cf4a';
+    ctx.fillRect(e.tx * sx, e.ty * sy, e.w * sx, e.h * sy);
+  }
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 1;
   ctx.strokeRect(cam.x / TILE * sx + 0.5, cam.y / TILE * sy + 0.5, vw / TILE * sx, vh / TILE * sy);
@@ -1139,7 +1147,9 @@ function render(ctx, cam, vw, vh, ui) {
 
   // Drag box.
   if (ui.drag && ui.drag.active) {
-    const d = ui.drag;
+    // The drag box is in screen pixels; undo the zoom.
+    const z = ui.zoom || 1;
+    const d = { x0: ui.drag.x0 / z, y0: ui.drag.y0 / z, x1: ui.drag.x1 / z, y1: ui.drag.y1 / z };
     ctx.strokeStyle = '#5cf05c';
     ctx.lineWidth = 1;
     ctx.strokeRect(Math.min(d.x0, d.x1) + 0.5, Math.min(d.y0, d.y1) + 0.5, Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));

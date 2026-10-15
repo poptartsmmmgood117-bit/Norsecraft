@@ -376,12 +376,17 @@ function toTitle() {
 function startGame() {
   newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed });
   enterGame();
+  // Small screens start a little zoomed out; frame the hall and its mine.
+  UI.zoom = Math.max(0.7, Math.min(1, UI.vh / 480));
   const hall = G.ents.find(e => e.type === 'hall' && e.owner === G.human);
-  centerOn(hall.x, hall.y);
+  const mine = nearestMine(hall.x, hall.y);
+  centerOn((hall.x + mine.x) / 2, (hall.y + mine.y) / 2);
   const p = humanPlayer();
   const foe = G.players[1];
   msg(`The ${FACTIONS[foe.faction].short} gather beyond the fjord. Build up and destroy them!`);
-  msg(`Right-click the gold mine with your ${unitName('worker', p.faction)}s to start mining.`);
+  msg(UI.touch ? `Tap a ${unitName('worker', p.faction)}, then tap the gold mine to start mining.`
+    : `Right-click the gold mine with your ${unitName('worker', p.faction)}s to start mining.`);
+  msg('More gold lies out in the wilds. Look for the gold marks on the minimap.');
 }
 
 // Shared setup for a fresh or loaded game.
@@ -478,19 +483,25 @@ function frame(t) {
   UI.hover = UI.mouse.in && UI.mouseWorld ? entityAt(UI.mouseWorld.x, UI.mouseWorld.y) : null;
   const view = $('view');
   const ctx = view.getContext('2d');
-  ctx.setTransform(UI.dpr, 0, 0, UI.dpr, 0, 0);
+  ctx.setTransform(UI.dpr * UI.zoom, 0, 0, UI.dpr * UI.zoom, 0, 0);
   ctx.imageSmoothingEnabled = true;
-  render(ctx, UI.cam, UI.vw, UI.vh, UI);
+  render(ctx, UI.cam, viewW(), viewH(), UI);
   miniT -= dt;
   if (miniT <= 0) {
     miniT = 0.15;
-    drawMinimap($('minimap').getContext('2d'), UI.cam, UI.vw, UI.vh);
+    drawMinimap($('minimap').getContext('2d'), UI.cam, viewW(), viewH());
   }
   rebuildPanels();
   updateLive();
 }
 
 window.addEventListener('resize', resize);
+// Offline support when served from a real site (not inside a preview frame).
+if ('serviceWorker' in navigator && location.protocol === 'https:' && window.top === window) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+// Touch devices get touch hints from the start.
+if (matchMedia('(pointer: coarse)').matches) { UI.touch = true; document.body && document.body.classList.add('touch'); }
 // Keep the autosave fresh when the tab is hidden or closed.
 const autosaveNow = () => { if (G.map && !G.over && $('title').style.display === 'none') saveGame('auto', UI.cam, UI.groups); };
 window.addEventListener('pagehide', autosaveNow);

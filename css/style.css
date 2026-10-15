@@ -156,10 +156,60 @@ h2 { font-size: 26px; margin-bottom: 12px; }
 #end-stats th { color: var(--accent); font-family: 'Cinzel', serif; }
 #end.win h2 { color: #ffe39a; }
 
-@media (max-width: 720px) {
-  #sidebar { width: 150px; padding: 4px; }
-  #minimap { width: 138px; height: 138px; }
-  .factions { flex-direction: column; }
-  h1 { font-size: 36px; }
-  #topbar { gap: 8px; font-size: 13px; }
+#idle-btn { display: none; }
+#idle-btn.has { display: inline-block; color: #ffe39a; border-color: var(--edge-hi); }
+.touch-h { font-size: 16px; margin: 14px 0 6px; }
+#rotate { z-index: 80; text-align: center; padding: 24px; font-family: 'Cinzel', serif; font-size: 20px; color: var(--accent); }
+#rotate .ph { font-size: 54px; display: block; margin-bottom: 12px; transform: rotate(90deg); }
+
+/* Phones and the notch: keep everything inside the safe area. */
+#app {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: #1b150f;
 }
+html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#view, #minimap { touch-action: none; }
+button { touch-action: manipulation; }
+
+/* Small screens, including phones held sideways. */
+@media (max-width: 900px), (max-height: 560px) {
+  #sidebar { width: 168px; padding: 5px; gap: 5px; }
+  #minimap { width: 154px; height: 154px; }
+  #info { min-height: 0; padding: 6px; font-size: 12px; }
+  #info .single canvas { width: 44px; height: 44px; }
+  #info .nm { font-size: 13px; }
+  #info .stats { margin-top: 4px; line-height: 1.35; }
+  #info .multi { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .cmdwrap { padding: 4px; }
+  #commands { gap: 4px; }
+  .cmd .glyph { font-size: 20px; }
+  #topbar { height: 32px; gap: 10px; padding: 0 8px; font-size: 13px; }
+  #topbar .res { min-width: 0; gap: 4px; }
+  #topbar button, #topbar select { padding: 2px 7px; font-size: 12px; }
+  #mode { display: none; }
+  #msgs { font-size: 13px; left: 8px; bottom: 8px; }
+  .title-panel { padding: 14px 16px; margin: 10px; }
+  h1 { font-size: 34px; }
+  .sub { margin: 2px 0 10px; font-size: 14px; }
+  .faction { padding: 10px; }
+  .faction p { font-size: 13px; }
+  .row { margin-top: 10px; }
+  .big { margin-top: 12px; padding: 8px 22px; font-size: 16px; }
+  .panel.small .big { margin-top: 6px; }
+}
+@media (max-height: 460px) {
+  #minimap { width: 120px; height: 120px; }
+  #sidebar { width: 150px; }
+  .faction p, .fine { display: none; }
+  h1 { font-size: 28px; }
+  .pv canvas { width: 32px; height: 32px; }
+  #clock, #speed-sel, #help-btn { display: none; }
+}
+@media (max-width: 560px) {
+  .factions { flex-direction: column; }
+}
+/* Phones held upright: ask for landscape. */
+@media (orientation: portrait) and (max-width: 600px) {
+  #rotate { display: flex; flex-direction: column; }
+}
+#sidebar > .frame:first-child { display: flex; justify-content: center; }

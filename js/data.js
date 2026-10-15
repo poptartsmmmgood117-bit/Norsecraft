@@ -179,6 +179,7 @@ const RESEARCH = {
 };
 
 const DIFFICULTY = {
+  beginner: { gather: 0.6, firstAttack: 780, wave: 2, waveGrow: 1, workers: 5, think: 2.2 },
   easy: { gather: 0.75, firstAttack: 540, wave: 3, waveGrow: 1, workers: 7, think: 1.6 },
   normal: { gather: 1.0, firstAttack: 360, wave: 5, waveGrow: 2, workers: 9, think: 1.0 },
   hard: { gather: 1.3, firstAttack: 210, wave: 6, waveGrow: 2, workers: 12, think: 0.7 },
