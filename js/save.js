@@ -15,7 +15,7 @@ function storageDel(key) {
 
 function aiState(ai) {
   if (!ai) return null;
-  return { pid: ai.pid, diffKey: ai.diffKey, t: ai.t, wave: ai.wave, waves: ai.waves, defendT: ai.defendT };
+  return { pid: ai.pid, diffKey: ai.diffKey, diff: ai.diff, t: ai.t, wave: ai.wave, waves: ai.waves, defendT: ai.defendT };
 }
 
 function restoreAI(s) {
@@ -47,6 +47,7 @@ function serializeGame(cam, groups) {
     ai: aiState(G.ai),
     ai2: aiState(G.ai2),
     tut: G.tut || null,
+    mission: G.mission || null,
     cam: cam ? { x: cam.x, y: cam.y } : null,
     groups: groupIds,
   });
@@ -80,6 +81,7 @@ function restoreGame(json) {
   G.ai = restoreAI(d.ai);
   G.ai2 = restoreAI(d.ai2);
   G.tut = d.tut || null;
+  G.mission = d.mission || null;
   G.vis = new Uint8Array(MAP_W * MAP_H);
   G.explored = Uint8Array.from(d.explored);
   G.over = null;

@@ -20,6 +20,16 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 
 New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk you through mining, building and training, and end with a raid to fight off.
 
+**Campaign:** *The Saga of the North* is five chapters for the Vikings, each unlocked by winning the one before:
+
+| | Chapter | Goal |
+|---|---|---|
+| 1 | The Burning Shore | Survive three waves of raiders |
+| 2 | Gold of the Giants | Burn the Jötnar Frost Hall |
+| 3 | The Long Winter | Hold out for 10 minutes |
+| 4 | The Völva of the Ironwood | Find the seeress, then destroy the outpost |
+| 5 | Ragnarök | Destroy the Jötnar for good |
+
 
 - **Economy:** mine gold and chop lumber with workers. Build farms for food (each unit costs 1).
 - **Repair:** workers fix damaged buildings (right-click it, or `E`). A full repair costs about a third of the building's price.
@@ -110,6 +120,7 @@ It then opens full screen from its own icon, like an app, and works offline afte
 | `js/main.js` | Game loop, synthesized music and voices, menus |
 | `js/save.js` | Save, load and autosave |
 | `js/tutorial.js` | The guided tutorial mission |
+| `js/campaign.js` | Campaign chapters, briefings and progress |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Home-screen app and offline support |
 
 Debug URL flags: `?autostart`, `?reveal` (no fog), `?ai=normal` (the computer plays your side too), `&speed=4`, `&faction=jotnar`.

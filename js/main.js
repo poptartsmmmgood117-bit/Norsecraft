@@ -320,14 +320,29 @@ function initTitle() {
   $('help-close').addEventListener('click', toggleHelp);
   $('menu-btn').addEventListener('click', togglePause);
   $('resume').addEventListener('click', togglePause);
-  $('restart').addEventListener('click', () => { $('pause').style.display = 'none'; G.paused = false; if (G.tut) startTutorial(); else startGame(); });
+  $('restart').addEventListener('click', () => {
+    $('pause').style.display = 'none';
+    G.paused = false;
+    if (G.mission) startMission(G.mission.id);
+    else if (G.tut) startTutorial();
+    else startGame();
+  });
+  $('campaign-btn').addEventListener('click', () => { audioCtx(); showCampaign(); });
+  $('camp-back').addEventListener('click', () => { $('campaign').style.display = 'none'; });
+  $('brief-back').addEventListener('click', () => { $('briefing').style.display = 'none'; showCampaign(); });
   $('tutorial').addEventListener('click', () => { audioCtx(); startTutorial(); });
   $('obj-skip').addEventListener('click', e => { e.stopPropagation(); tutSkip(); });
   $('objective').addEventListener('click', () => $('objective').classList.toggle('min'));
   $('quit').addEventListener('click', toTitle);
   $('again').addEventListener('click', () => {
     $('end').style.display = 'none';
-    if (G.tut && !G.tut.complete) startTutorial(); else startGame();
+    if (G.mission) {
+      const i = G.mission.id;
+      if (G.over !== 'victory') startMission(i);
+      else if (i + 1 < MISSIONS.length) showBriefing(i + 1);
+      else { $('title').style.display = 'flex'; showCampaign(); }
+    } else if (G.tut && !G.tut.complete) startTutorial();
+    else startGame();
   });
   $('to-title').addEventListener('click', toTitle);
   $('mute').addEventListener('click', () => {
@@ -459,6 +474,15 @@ function showEnd() {
     return;
   }
   $('again').textContent = 'Play again';
+  if (G.mission) {
+    const i = G.mission.id;
+    const def = MISSIONS[i];
+    const last = i + 1 >= MISSIONS.length;
+    missionRender();
+    $('end-title').textContent = win ? (last ? 'The saga is complete' : `Chapter ${i + 1} won`) : 'Defeat';
+    $('end-text').textContent = win ? def.win : 'The chapter is lost, but a saga is made of second chances. Try again.';
+    $('again').textContent = win ? (last ? 'Back to the saga' : `Chapter ${i + 2}: ${MISSIONS[i + 1].name}`) : 'Try again';
+  }
   const t = Math.floor(G.time);
   $('end-stats').innerHTML = `
     <tr><th></th><th>You</th><th>${FACTIONS[foe.faction].short}</th></tr>
@@ -508,6 +532,7 @@ function frame(t) {
     if (G.autoT <= 0) { G.autoT = 60; saveGame('auto', UI.cam, UI.groups); }
   }
   tutorialUpdate(dt);
+  missionUpdate(dt);
   scrollCamera(dt);
   if (UI.mouseWorld) UI.mouseWorld = toWorld(UI.mouse.x, UI.mouse.y);
   UI.hover = UI.mouse.in && UI.mouseWorld ? entityAt(UI.mouseWorld.x, UI.mouseWorld.y) : null;

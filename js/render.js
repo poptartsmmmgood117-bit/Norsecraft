@@ -228,6 +228,16 @@ function drawMinimap(ctx, cam, vw, vh) {
       }
     }
   }
+  // Campaign objectives show through the fog as a pulsing ring.
+  const mk = typeof missionMarker === 'function' ? missionMarker() : null;
+  if (mk) {
+    const pr = 4 + Math.sin(performance.now() / 200) * 1.5;
+    ctx.strokeStyle = '#c58cff';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc((mk.x + 0.5) * sx, (mk.y + 0.5) * sy, pr + 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#c58cff';
+    ctx.fillRect((mk.x + 0.5) * sx - 2, (mk.y + 0.5) * sy - 2, 4, 4);
+  }
   // Gold mines are common knowledge, so they show through the fog.
   for (const e of G.ents) {
     if (e.dead || e.type !== 'mine') continue;

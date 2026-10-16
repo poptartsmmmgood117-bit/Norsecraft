@@ -120,7 +120,9 @@ function tutEnterStep(i) {
 }
 
 function tutRender() {
+  if (G.mission) return missionRender();
   const box = $('objective');
+  $('obj-skip').hidden = false;
   if (!G.tut || G.over) { box.hidden = true; return; }
   const s = TUTORIAL_STEPS[G.tut.step];
   if (!s) { box.hidden = true; return; }

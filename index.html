@@ -91,6 +91,7 @@
     </div>
     <div class="start-row">
       <button id="start" class="big">Begin the Saga</button>
+      <button id="campaign-btn" class="big alt">Campaign</button>
       <button id="tutorial" class="big alt">Tutorial</button>
     </div>
     <div id="continue-box" hidden>
@@ -102,6 +103,29 @@
 </div>
 
 <div id="rotate" class="overlay"><div><span class="ph">📱</span>Turn your phone sideways to play</div></div>
+
+<div id="campaign" class="overlay">
+  <div class="panel camp-panel">
+    <h2>The Saga of the North</h2>
+    <p class="sub">Lead the Vikings of Midgard from a burning shore to the end of the world.</p>
+    <div id="chapters"></div>
+    <button id="camp-back" class="big alt">Back</button>
+  </div>
+</div>
+
+<div id="briefing" class="overlay">
+  <div class="panel brief-panel">
+    <div id="brief-ch" class="eyebrow"></div>
+    <h2 id="brief-title"></h2>
+    <div id="brief-story"></div>
+    <h3>Objectives</h3>
+    <ul id="brief-goals"></ul>
+    <div class="start-row">
+      <button id="brief-go" class="big">Begin</button>
+      <button id="brief-back" class="big alt">Back</button>
+    </div>
+  </div>
+</div>
 
 <div id="help" class="overlay">
   <div class="panel help-panel">
@@ -169,6 +193,7 @@
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/tutorial.js"></script>
+<script src="js/campaign.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
