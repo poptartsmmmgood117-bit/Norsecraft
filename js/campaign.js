@@ -92,6 +92,14 @@ function mBase(owner, types) {
   for (const t of types) mPlace(t, owner, h.x + dir * 2, h.y - dir * 1, 3);
 }
 
+// Give a side its hero, already at a given level of experience.
+function mHero(owner, xp) {
+  G.players[owner].heroXp = xp;
+  const [h] = mArmy(owner, ['hero']);
+  if (h) applyHeroLevel(h);
+  return h;
+}
+
 function mWave(types) {
   const e = mHome(1);
   const hall = mHall(0);
@@ -161,13 +169,14 @@ const MISSIONS = [
     blurb: 'Take the fight to the Jötnar and burn their Frost Hall.',
     story: [
       'The raiders came from a camp across the fjord, built around a mine of giant-gold.',
-      'Their warband is spent, but the camp is guarded by Ice Spires. Take your army and your Ballista, break the towers, and bring down the Frost Hall.',
+      'Their warband is spent, but the camp is guarded by Ice Spires. Sigrún Shield-Maiden has sworn to lead your army. Take her and your Ballista, break the towers, and bring down the Frost Hall.',
     ],
     goals: ['Destroy the Jötnar Frost Hall.'],
     win: 'The Frost Hall collapses into slush. The gold of the giants now fills your coffers.',
     setup() {
       mBase(0, ['barracks', 'mill', 'farm', 'farm', 'farm']);
       mArmy(0, ['worker', 'worker', 'melee', 'melee', 'melee', 'melee', 'melee', 'ranged', 'ranged', 'ranged', 'siege']);
+      mHero(0, 0);
       mBase(1, ['barracks', 'farm', 'tower', 'tower']);
       mArmy(1, ['melee', 'melee', 'melee', 'ranged', 'ranged']);
       const p = humanPlayer();
@@ -193,7 +202,8 @@ const MISSIONS = [
     goals: ['Survive for 10 minutes.', 'Keep your Longhouse standing.'],
     win: 'The clouds part and the first warm wind blows from the south. You have outlasted the winter.',
     setup() {
-      mBase(0, ['barracks', 'farm', 'farm', 'tower']);
+      mBase(0, ['barracks', 'farm', 'farm', 'farm', 'tower']);
+      mHero(0, 30);
       mArmy(0, ['worker', 'worker', 'worker', 'worker', 'melee', 'melee', 'melee', 'melee', 'ranged', 'ranged']);
       const p = humanPlayer();
       p.gold = 600; p.wood = 450;
@@ -221,6 +231,7 @@ const MISSIONS = [
     setup(m) {
       mBase(0, ['barracks', 'farm', 'farm']);
       mArmy(0, ['worker', 'worker', 'melee', 'melee', 'melee', 'melee', 'ranged', 'ranged', 'rider']);
+      mHero(0, 30);
       mBase(1, ['barracks', 'farm', 'tower']);
       const p = humanPlayer();
       p.gold = 500; p.wood = 300;
@@ -260,15 +271,17 @@ const MISSIONS = [
     blurb: 'The final battle. Only one people will see the new world.',
     story: [
       'The wolf has slipped its chains and the horn of Heimdall sounds across the nine worlds. This is Ragnarök.',
-      'The Jötnar come with all their strength and all their magic. Build, raise every warrior you can, and destroy them utterly, or be destroyed.',
+      'The Jötnar come with all their strength and all their magic, and Hrungnir Stone-Heart marches with them. Build, raise every warrior you can, and destroy them utterly, or be destroyed.',
     ],
     goals: ['Destroy every Jötnar unit and building.'],
     win: 'The giants are gone. From the ashes of the old world a green new land rises, and your name is the first the skalds sing.',
     setup() {
       mBase(0, ['barracks', 'farm', 'farm']);
       mArmy(0, ['worker', 'worker', 'melee', 'melee', 'melee', 'melee', 'ranged', 'ranged']);
-      mBase(1, ['barracks', 'farm']);
+      mHero(0, 80);
+      mBase(1, ['barracks', 'farm', 'farm']);
       mArmy(1, ['worker', 'worker', 'melee', 'melee', 'ranged']);
+      mHero(1, 80);
       const p = humanPlayer();
       p.gold = 1000; p.wood = 700;
       // Easy-strength economy, but it keeps growing its waves for a long fight.

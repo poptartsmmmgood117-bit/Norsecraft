@@ -124,16 +124,98 @@ function atkOf(e) {
   const up = e.owner >= 0 ? G.players[e.owner].up : null;
   let a = d.atk;
   if (up) {
-    if ((e.type === 'melee' || e.type === 'rider') && up.weapons) a += 2;
+    if ((e.type === 'melee' || e.type === 'rider' || e.type === 'hero') && up.weapons) a += 2;
     if ((e.type === 'ranged' || e.type === 'tower') && up.arrows) a += 2;
   }
+  if (e.type === 'hero') a += 2 * ((e.level || 1) - 1);
+  if (e.buffT > 0) a += 2;
+  if (e.kind === 'unit' && inAura(e, 'attack')) a += 1;
   return a;
 }
 function armorOf(e) {
   const d = defOf(e);
   let a = d.armor || 0;
   if (e.kind === 'unit' && e.owner >= 0 && G.players[e.owner].up.armor) a += 1;
+  if (e.type === 'hero') a += (e.level >= 3 ? 1 : 0) + (e.level >= 5 ? 1 : 0);
+  if (e.kind === 'unit' && inAura(e, 'armor')) a += 1;
   return a;
+}
+
+// ---------- heroes ----------
+
+function heroLevel(xp) {
+  let l = 1;
+  while (l < HERO_XP.length && xp >= HERO_XP[l]) l++;
+  return l;
+}
+function heroMaxHp(level) { return UNITS.hero.hp + 40 * (level - 1); }
+function heroOf(pid) { return G.ents.find(e => !e.dead && e.owner === pid && e.type === 'hero'); }
+
+// True when a friendly hero with the given aura is close enough to e.
+function inAura(e, kind) {
+  if (e.owner < 0) return false;
+  for (const h of G.heroes || []) {
+    if (h.dead || h.owner !== e.owner || HERO[G.players[h.owner].faction].aura !== kind) continue;
+    if (Math.abs(h.x - e.x) <= HERO_AURA_RANGE * TILE && Math.abs(h.y - e.y) <= HERO_AURA_RANGE * TILE) return true;
+  }
+  return false;
+}
+
+function applyHeroLevel(u) {
+  const p = G.players[u.owner];
+  u.xp = p.heroXp || 0;
+  u.level = heroLevel(u.xp);
+  u.maxHp = heroMaxHp(u.level);
+  u.hp = u.maxHp;
+}
+
+function grantHeroXp(owner, x, y, amount) {
+  if (owner < 0) return;
+  for (const h of G.heroes || []) {
+    if (h.dead || h.owner !== owner) continue;
+    if (Math.hypot(h.x - x, h.y - y) > TILE * 7) continue;
+    const p = G.players[owner];
+    p.heroXp = (p.heroXp || 0) + amount;
+    h.xp = p.heroXp;
+    const lv = heroLevel(h.xp);
+    if (lv > h.level) {
+      const gain = heroMaxHp(lv) - h.maxHp;
+      h.level = lv;
+      h.maxHp += gain;
+      h.hp = Math.min(h.maxHp, h.hp + gain + h.maxHp * 0.25);
+      G.effects.push({ type: 'levelup', x: h.x, y: h.y, t: 1.2 });
+      msg(`${unitName('hero', p.faction)} reached level ${lv}!` + (lv === 2 ? ` ${HERO[p.faction].abilityName} is ready (R).` : ''), owner);
+      if (owner === G.human) sfx('done');
+    }
+  }
+}
+
+function heroAbilityReady(u) { return u.type === 'hero' && u.level >= 2 && !(u.abilT > 0); }
+
+function useHeroAbility(u) {
+  if (!heroAbilityReady(u)) return false;
+  const f = G.players[u.owner].faction;
+  u.abilT = HERO_ABILITY_CD;
+  u.atkAnim = 0.3;
+  if (HERO[f].ability === 'warcry') {
+    for (const e of G.ents) {
+      if (e.kind !== 'unit' || e.dead || e.hidden || e.owner !== u.owner) continue;
+      if (Math.hypot(e.x - u.x, e.y - u.y) <= HERO_AURA_RANGE * TILE) e.buffT = 10;
+    }
+    G.effects.push({ type: 'warcry', x: u.x, y: u.y, t: 0.9 });
+    if (u.owner === G.human || tileVisible(u.x, u.y)) sfx('warcry');
+  } else {
+    const src = { id: u.id, owner: u.owner, type: 'hero' };
+    for (const e of G.ents) {
+      if (e.kind !== 'unit' || e.dead || e.hidden || !isEnemy(u, e)) continue;
+      if (Math.hypot(e.x - u.x, e.y - u.y) > TILE * 2.2) continue;
+      e.stunT = 1.5;
+      damage(src, e, 30 + armorOf(e));
+    }
+    G.effects.push({ type: 'quake', x: u.x, y: u.y, t: 0.8 });
+    if (u.owner === G.human || tileVisible(u.x, u.y)) sfx('thud');
+  }
+  return true;
 }
 
 function hasBuilt(pid, type) {
@@ -210,6 +292,9 @@ function updateUnit(u, dt) {
     }
     return;
   }
+  if (u.buffT > 0) u.buffT -= dt;
+  if (u.abilT > 0) u.abilT -= dt;
+  if (u.stunT > 0) { u.stunT -= dt; return; }
   if (u.life != null) {
     u.life -= dt;
     if (u.life <= 0) { kill(u, null); return; }
@@ -291,7 +376,7 @@ function doAttack(u, dt, o) {
     face(u, t);
     if (u.cd <= 0) {
       strike(u, t);
-      u.cd = d.cd;
+      u.cd = d.cd * (u.buffT > 0 ? 0.7 : 1);
       u.atkAnim = 0.3;
     }
     return;
@@ -372,6 +457,10 @@ function kill(t, src) {
   if (src && src.owner >= 0 && t.owner >= 0) {
     G.players[src.owner].stats.killed++;
     G.players[t.owner].stats.lost++;
+    if (t.life == null) grantHeroXp(src.owner, t.x, t.y, t.kind === 'bldg' ? 20 : t.type === 'worker' ? 5 : t.type === 'hero' ? 50 : 10);
+  }
+  if (t.type === 'hero' && t.owner >= 0) {
+    msg(`${unitName('hero', G.players[t.owner].faction)} has fallen! Call them back at the ${bldgName('hall', G.players[t.owner].faction)}.`, t.owner);
   }
   if (t.kind === 'unit') {
     if (t.life != null) {
@@ -730,6 +819,7 @@ function finishTraining(b, type) {
     else if (type === 'worker' && G.map.isForest(r.x, r.y)) cmdGather([u], null, { x: r.x, y: r.y });
     else cmdMove([u], r.x, r.y, false);
   }
+  if (type === 'hero') applyHeroLevel(u);
   if (G.ai && b.owner === G.ai.pid) G.ai.onTrained(u);
   if (G.ai2 && b.owner === G.ai2.pid) G.ai2.onTrained(u);
 }
@@ -878,6 +968,9 @@ function cmdTrain(b, type) {
   const d = UNITS[type];
   if (!b.built) return 'Not built yet.';
   if (!reqsMet(p.id, d.req)) return 'Requires ' + d.req.map(r => bldgName(r, p.faction)).join(', ') + '.';
+  if (d.hero && (heroOf(p.id) || G.ents.some(e => !e.dead && e.owner === p.id && e.kind === 'bldg' && e.queue.some(q => q.unit === 'hero')))) {
+    return `${unitName('hero', p.faction)} is already with you.`;
+  }
   if (b.queue.length >= 5) return 'Queue is full.';
   if (!canAfford(p, d)) return p.gold < d.gold ? 'Not enough gold.' : 'Not enough lumber.';
   pay(p, d);
@@ -1198,6 +1291,7 @@ function tick(dt) {
   G.time += dt;
   G.attackMsgT -= dt;
   if (G.combatT > 0) G.combatT -= dt;
+  G.heroes = G.ents.filter(e => e.type === 'hero' && !e.dead);
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.kind === 'unit') updateUnit(e, dt);

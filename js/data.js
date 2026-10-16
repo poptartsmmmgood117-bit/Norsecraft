@@ -73,6 +73,12 @@ const UNITS = {
     names: { vikings: 'Völva', jotnar: 'Frost Shaman' },
     desc: 'Spellcaster. Heals allies automatically; learns summoning and storm magic at the temple.',
   },
+  hero: {
+    hp: 200, atk: 14, armor: 3, range: 1, cd: 0.9, speed: 1.9, sight: 7, hero: true,
+    gold: 300, wood: 150, time: 30, hotkey: 'J', req: ['barracks'],
+    names: { vikings: 'Sigrún Shield-Maiden', jotnar: 'Hrungnir Stone-Heart' },
+    desc: 'Your hero. Only one at a time; grows stronger with every battle and keeps their level if called again after falling.',
+  },
   // Summoned by spells only; they fade when their time runs out.
   einherjar: {
     hp: 55, atk: 8, armor: 2, range: 1, cd: 1.0, speed: 1.8, sight: 5, summon: true,
@@ -87,6 +93,21 @@ const UNITS = {
 };
 
 const MANA_REGEN = 0.8;
+
+// Experience needed for each hero level (index = level - 1).
+const HERO_XP = [0, 30, 80, 150, 250];
+const HERO = {
+  vikings: {
+    aura: 'armor', auraName: 'Shield Wall', auraDesc: 'Allies near her gain +1 armor.',
+    ability: 'warcry', abilityName: 'War Cry', abilityDesc: 'Allies nearby attack 30% faster and deal +2 damage for 10 seconds.',
+  },
+  jotnar: {
+    aura: 'attack', auraName: "Giant's Wrath", auraDesc: 'Allies near him gain +1 attack.',
+    ability: 'quake', abilityName: 'Earthshaker', abilityDesc: 'Slam the ground: enemies nearby take 30 damage and are stunned for 1.5 seconds.',
+  },
+};
+const HERO_AURA_RANGE = 5;
+const HERO_ABILITY_CD = 35;
 const SUMMON_LIFE = 45;
 
 const SPELLS = {
@@ -110,7 +131,7 @@ const SPELLS = {
 const BUILDINGS = {
   hall: {
     w: 3, h: 3, hp: 1200, armor: 2, gold: 400, wood: 250, time: 45, food: 5, sight: 8,
-    hotkey: 'L', trains: ['worker'], dropoff: ['gold', 'wood'],
+    hotkey: 'L', trains: ['worker', 'hero'], dropoff: ['gold', 'wood'],
     names: { vikings: 'Longhouse', jotnar: 'Frost Hall' },
     desc: 'Trains workers. Gold and lumber are returned here.',
   },

@@ -168,6 +168,13 @@ class AI {
       }
     }
 
+    // The hero comes first once a barracks stands: save up for them.
+    const heroQueued = hall.queue.some(q => q.unit === 'hero');
+    if (hall.built && G.time > 120 && reqsMet(this.pid, UNITS.hero.req) && !heroOf(this.pid) && !heroQueued) {
+      if (canAfford(p, UNITS.hero) && !hall.queue.length) cmdTrain(hall, 'hero');
+      else saving = true;
+    }
+
     // Army.
     if (!saving) {
       for (const b of bldgs) {
@@ -178,6 +185,14 @@ class AI {
     }
 
     this.castSpells(army);
+
+    // Use the hero's ability in fights.
+    const hero = heroOf(this.pid);
+    if (hero && heroAbilityReady(hero)) {
+      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid &&
+        Math.hypot(e.x - hero.x, e.y - hero.y) < TILE * (HERO[p.faction].ability === 'quake' ? 2.2 : 5));
+      if (near.length >= 2) useHeroAbility(hero);
+    }
 
     // Defense: enemies close to home.
     const threat = this.findThreat(hall);

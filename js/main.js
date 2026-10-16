@@ -60,6 +60,7 @@ sfx = function (name) {
     case 'ack': if (!speak('ack')) { tone(392, 0.07, 'triangle', 0.07); tone(523, 0.07, 'triangle', 0.06, 0, 0.06); } break;
     case 'heal': [660, 880, 1100].forEach((f, i) => tone(f, 0.25, 'sine', 0.05, 0, i * 0.07)); break;
     case 'summon': tone(140, 0.9, 'sawtooth', 0.05, 220); noise(0.6, 0.06, 1800); break;
+    case 'warcry': [196, 247, 294].forEach((f, i) => tone(f, 0.7, 'sawtooth', 0.06, 0, i * 0.12)); break;
     case 'thunder': noise(1.4, 0.25, 260); tone(55, 1.2, 'sawtooth', 0.06, -20); break;
     case 'zap': noise(0.12, 0.12, 4000); break;
     case 'wind': noise(2.5, 0.12, 900); noise(2.5, 0.06, 2600, 0.4); break;
@@ -83,8 +84,8 @@ sfx = function (name) {
 // gives each unit a short grunt of acknowledgement.
 const VOWELS = [[730, 1090], [570, 840], [400, 1900], [300, 870], [660, 1700]];
 const VOICE = {
-  vikings: { worker: 150, melee: 115, ranged: 135, rider: 240, siege: 0, caster: 250, einherjar: 95, wolf: -1 },
-  jotnar: { worker: 120, melee: 75, ranged: 100, rider: -1, siege: 55, caster: 90, einherjar: 95, wolf: -1 },
+  vikings: { worker: 150, melee: 115, ranged: 135, rider: 240, siege: 0, caster: 250, einherjar: 95, wolf: -1, hero: 215 },
+  jotnar: { worker: 120, melee: 75, ranged: 100, rider: -1, siege: 55, caster: 90, einherjar: 95, wolf: -1, hero: 50 },
 };
 
 function syllable(ac, out, f0, t0, dur, vowel, glide) {
@@ -354,7 +355,7 @@ function initTitle() {
   // Faction preview portraits.
   for (const f of ['vikings', 'jotnar']) {
     const box = $('pv-' + f);
-    for (const t of ['worker', 'melee', 'ranged', 'rider', 'siege', 'caster']) {
+    for (const t of ['worker', 'melee', 'ranged', 'rider', 'siege', 'caster', 'hero']) {
       const c = document.createElement('canvas');
       c.width = 46; c.height = 46;
       box.appendChild(c);

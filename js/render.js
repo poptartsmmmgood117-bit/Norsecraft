@@ -534,6 +534,46 @@ function drawUnitSprite(ctx, type, faction, color, o) {
     ctx.shadowBlur = o.atk > 0 ? 12 : 6;
     ctx.beginPath(); ctx.arc(6, -15 + lift, 2.6, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
+  } else if (type === 'hero') {
+    if (giant) {
+      // Hrungnir: a towering stone-hearted giant with an ice crown and a great club.
+      shadow(ctx, 12);
+      ctx.scale(1.55, 1.55);
+      legs(ctx, o.walk, '#5f7f8f', 8);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(6, -6); ctx.lineTo(8, 8); ctx.lineTo(-8, 8); ctx.closePath(); ctx.fill();
+      torso(ctx, '#8fb2c2', 12, 12);
+      ctx.fillStyle = '#5d6a70';
+      ctx.beginPath(); ctx.arc(0, -4, 3, 0, Math.PI * 2); ctx.fill();
+      head(ctx, faction, { tusks: true, r: 4.6 });
+      ctx.fillStyle = '#d6f6ff';
+      for (const hx of [-3, 0, 3]) { ctx.beginPath(); ctx.moveTo(hx - 1.4, -14); ctx.lineTo(hx, -19 - (hx ? 0 : 2)); ctx.lineTo(hx + 1.4, -14); ctx.fill(); }
+      club(ctx, swing);
+    } else {
+      // Sigrún: winged helm, team-colored cape, sword and a bright shield.
+      shadow(ctx, 9);
+      ctx.scale(1.25, 1.25);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(-5, -7); ctx.lineTo(4, -7); ctx.lineTo(7, 9); ctx.lineTo(-8, 9); ctx.closePath(); ctx.fill();
+      legs(ctx, o.walk, '#3e3326');
+      torso(ctx, '#b9bec4');
+      ctx.fillStyle = '#e8c547'; ctx.fillRect(-5, -1, 10, 2);
+      head(ctx, faction, { helm: false });
+      ctx.fillStyle = '#e8c547';
+      ctx.beginPath(); ctx.moveTo(-4, -12); ctx.lineTo(4, -12); ctx.lineTo(0, -11); ctx.fill();
+      ctx.fillStyle = '#e9b44c';
+      ctx.fillRect(-4.5, -11, 1.5, 7);
+      ctx.fillStyle = '#c9ced3';
+      ctx.beginPath(); ctx.arc(0, -11, 4.6, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#f5f5f0';
+      ctx.beginPath(); ctx.moveTo(-4, -13); ctx.quadraticCurveTo(-11, -20, -9, -11); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(4, -13); ctx.quadraticCurveTo(11, -20, 9, -11); ctx.fill();
+      ctx.save(); ctx.translate(4, -3); ctx.rotate(-0.5 + swing * 1.7);
+      ctx.fillStyle = '#e3e7ea'; ctx.fillRect(-1, -15, 2.2, 14);
+      ctx.fillStyle = '#e8c547'; ctx.fillRect(-3, -1.5, 6.5, 2);
+      ctx.restore();
+      roundShield(ctx, '#e8c547', -4, -3, 5.5);
+    }
   } else if (type === 'einherjar') {
     // A ghostly huscarl.
     ctx.globalAlpha *= 0.75;
@@ -937,7 +977,7 @@ function drawSelection(ctx, e, color) {
   if (e.kind === 'bldg') {
     ctx.strokeRect(e.tx * TILE + 1, e.ty * TILE + 1, e.w * TILE - 2, e.h * TILE - 2);
   } else {
-    const big = e.type === 'rider' || e.type === 'siege';
+    const big = e.type === 'rider' || e.type === 'siege' || e.type === 'hero';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + 9, big ? 14 : 10, big ? 6 : 4.5, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
@@ -1011,6 +1051,29 @@ function drawEffect(ctx, fx, layer) {
     ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.4 + k * 0.8), 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(90,90,90,${Math.max(0, 0.5 - k * 0.5)})`;
     ctx.beginPath(); ctx.arc(fx.x, fx.y - k * 20, fx.r * 0.6, 0, Math.PI * 2); ctx.fill();
+  } else if (fx.type === 'levelup') {
+    const k = 1 - fx.t / 1.2;
+    ctx.fillStyle = `rgba(255,220,110,${0.45 * (1 - k)})`;
+    ctx.fillRect(fx.x - 9, fx.y - 60 * k - 20, 18, 30 + 60 * k);
+    ctx.fillStyle = `rgba(255,236,160,${1 - k})`;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LEVEL UP', fx.x, fx.y - 34 - k * 18);
+  } else if (fx.type === 'warcry') {
+    const k = 1 - fx.t / 0.9;
+    ctx.strokeStyle = `rgba(255,210,90,${1 - k})`;
+    ctx.lineWidth = 4 * (1 - k) + 1;
+    ctx.beginPath(); ctx.ellipse(fx.x, fx.y + 6, HERO_AURA_RANGE * TILE * k, HERO_AURA_RANGE * TILE * k * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+  } else if (fx.type === 'quake') {
+    const k = 1 - fx.t / 0.8;
+    ctx.strokeStyle = `rgba(140,110,80,${1 - k})`;
+    ctx.lineWidth = 6 * (1 - k) + 1;
+    ctx.beginPath(); ctx.ellipse(fx.x, fx.y + 8, 2.2 * TILE * k + 6, (2.2 * TILE * k + 6) * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(120,100,80,${0.5 * (1 - k)})`;
+    for (let i = 0; i < 10; i++) {
+      const a = i / 10 * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(fx.x + Math.cos(a) * 50 * k, fx.y + 8 + Math.sin(a) * 28 * k - 10 * Math.sin(k * Math.PI), 4, 0, Math.PI * 2); ctx.fill();
+    }
   } else if (fx.type === 'heal') {
     const k = 1 - fx.t;
     const c = fx.faction === 'jotnar' ? '159,232,255' : '255,226,120';
@@ -1078,6 +1141,16 @@ function render(ctx, cam, vw, vh, ui) {
   list.sort((a, b) => (a.kind === 'bldg' ? (a.ty + a.h) * TILE - 1 : a.y + 8) - (b.kind === 'bldg' ? (b.ty + b.h) * TILE - 1 : b.y + 8));
   const sel = ui.selected;
   for (const e of list) {
+    if (e.type === 'hero') {
+      // Heroes stand in a faint golden glow, and buffed units shimmer.
+      ctx.fillStyle = 'rgba(255,215,110,0.18)';
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + 9, 18, 8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    if (e.buffT > 0) {
+      ctx.strokeStyle = 'rgba(255,200,80,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + 9, 11, 5, 0, 0, Math.PI * 2); ctx.stroke();
+    }
     if (sel.has(e)) drawSelection(ctx, e, e.owner === G.human ? '#5cf05c' : e.owner < 0 ? '#e8d050' : '#ff5040');
     if (e.kind === 'bldg') drawBuilding(ctx, e);
     else drawUnit(ctx, e);
@@ -1114,7 +1187,18 @@ function render(ctx, cam, vw, vh, ui) {
         ctx.fillStyle = '#e8c547'; ctx.fillRect(e.tx * TILE + 4, e.ty * TILE + e.h * TILE - 6, (e.w * TILE - 8) * e.progress, 3);
       }
     } else {
-      drawHpBar(ctx, e.x - 10, e.y - 26, 20, e.hp / e.maxHp);
+      if (e.type === 'hero') {
+        drawHpBar(ctx, e.x - 14, e.y - 36, 28, e.hp / e.maxHp);
+        ctx.fillStyle = '#ffd86a';
+        for (let i = 0; i < (e.level || 1); i++) ctx.fillRect(e.x - 13 + i * 6, e.y - 42, 4, 4);
+      } else drawHpBar(ctx, e.x - 10, e.y - 26, 20, e.hp / e.maxHp);
+      if (e.stunT > 0) {
+        ctx.fillStyle = '#ffe680';
+        for (let i = 0; i < 3; i++) {
+          const a = G.time * 6 + i * 2.1;
+          ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * 8, e.y - 20 + Math.sin(a) * 3, 1.8, 0, Math.PI * 2); ctx.fill();
+        }
+      }
       if (e.mana != null && (sel.has(e) || e.owner === G.human)) {
         ctx.fillStyle = '#111'; ctx.fillRect(e.x - 11, e.y - 22, 22, 4);
         ctx.fillStyle = '#4a8cff'; ctx.fillRect(e.x - 10, e.y - 21, 20 * e.mana / UNITS[e.type].mana, 2);
@@ -1181,8 +1265,8 @@ function drawIcon(canvas, kind, type, faction, color) {
   ctx.fillRect(0, 0, W, H);
   if (kind === 'unit') {
     ctx.save();
-    const s = W / 30 * (type === 'siege' ? 0.75 : type === 'rider' ? 0.9 : 1.1);
-    ctx.translate(W / 2, H * (type === 'siege' ? 0.62 : 0.55));
+    const s = W / 30 * (type === 'siege' ? 0.75 : type === 'rider' ? 0.9 : type === 'hero' ? (faction === 'jotnar' ? 0.62 : 0.85) : 1.1);
+    ctx.translate(W / 2, H * (type === 'siege' ? 0.62 : type === 'hero' ? 0.66 : 0.55));
     drawUnitSprite(ctx, type, faction, color, { dir: 1, walk: 0, atk: 0, scale: s });
     ctx.restore();
   } else if (kind === 'bldg') {

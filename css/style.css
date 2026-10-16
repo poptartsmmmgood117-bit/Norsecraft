@@ -132,7 +132,8 @@ h2 { font-size: 26px; margin-bottom: 12px; }
 .faction p { margin: 8px 0 0; color: #c8bfab; font-size: 14px; line-height: 1.4; }
 .pv { display: flex; gap: 4px; margin-top: 10px; }
 .pv { flex-wrap: wrap; }
-.pv canvas { border: 1px solid #3a3226; border-radius: 3px; width: 40px; height: 40px; }
+.pv { gap: 3px; }
+.pv canvas { border: 1px solid #3a3226; border-radius: 3px; width: 35px; height: 35px; }
 .faction { min-width: 0; }
 .row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
 .lbl { width: 60px; color: var(--muted); font-family: 'Cinzel', serif; }
@@ -270,3 +271,8 @@ button { touch-action: manipulation; }
   .ch-blurb { font-size: 12px; }
   #brief-story p { font-size: 14px; margin-bottom: 6px; }
 }
+
+#info .xp { height: 6px; background: #0c0f12; border: 1px solid #3c444b; border-radius: 2px; overflow: hidden; }
+#info .xp div { height: 100%; width: 0; background: linear-gradient(90deg, #b08d57, #ffd86a); }
+#info .aura { margin-top: 6px; color: #cfc6b2; line-height: 1.35; }
+#info .aura b { color: var(--accent); }

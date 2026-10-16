@@ -55,6 +55,13 @@ New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk y
 | Tower | Watchtower | Ice Spire |
 | Temple | Hof | Rime Shrine |
 
+- **Heroes:** call one hero at the Longhouse once you have a barracks. Heroes gain experience when enemies fall near them (up to level 5) and keep their level if called again after falling.
+
+| | Vikings: Sigrún Shield-Maiden | Jötnar: Hrungnir Stone-Heart |
+|---|---|---|
+| Aura | Shield Wall: allies nearby +1 armor | Giant's Wrath: allies nearby +1 attack |
+| Ability (`R`, level 2+) | War Cry: allies nearby hit 30% faster and +2 damage for 10s | Earthshaker: 30 damage and a 1.5s stun around him |
+
 - **Upgrades:** Runed Blades, Iron Mail and Barbed Arrows.
 - **Magic:** spellcasters use mana, which refills over time. Every caster knows a heal, which it also casts by itself on wounded allies nearby. Two more spells are learned at the temple:
 
@@ -99,6 +106,7 @@ It then opens full screen from its own icon, like an app, and works offline afte
 | `B` | Build menu (workers) |
 | `E` then click | Repair a damaged building (workers) / heal (casters) |
 | `U`, `T` | Summon / storm (casters) |
+| `R` | Hero ability (when a hero is selected) |
 | `Ctrl+1–9`, `1–9` | Control groups (tap twice to jump) |
 | `.` | Cycle idle workers |
 | `Space` | Jump to last attack or to the selection |

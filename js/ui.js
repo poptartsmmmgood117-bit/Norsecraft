@@ -251,6 +251,17 @@ function getCommands() {
     if (units.some(u => u.type !== 'worker')) {
       cmds.push({ key: 'H', glyph: '⛨', name: 'Hold Position', desc: 'Stand ground and only attack enemies in range.', act: () => cmdHold(units) });
     }
+    const hero = units.find(u => u.type === 'hero');
+    if (hero) {
+      const H = HERO[f];
+      const ready = heroAbilityReady(hero);
+      cmds.push({
+        key: 'R', glyph: H.ability === 'warcry' ? '📯' : '💥', name: H.abilityName,
+        desc: H.abilityDesc + (hero.level < 2 ? ' <em>Unlocks at level 2.</em>' : hero.abilT > 0 ? ` <em>Ready in ${Math.ceil(hero.abilT)}s.</em>` : ''),
+        disabled: hero.level < 2, poor: hero.level >= 2 && !ready,
+        act: () => { if (!useHeroAbility(hero)) { msg(hero.level < 2 ? 'Reach level 2 first.' : 'Not ready yet.'); sfx('error'); } },
+      });
+    }
     const casters = units.filter(u => u.mana != null);
     if (casters.length) {
       const glyphs = { heal: '✚', summon: f === 'vikings' ? 'ᛟ' : '🐺', storm: f === 'vikings' ? 'ϟ' : '❄' };
@@ -329,6 +340,7 @@ function commandSig() {
   for (const t of BUILD_ORDER) parts.push(hasBuilt(G.human, t) ? 1 : 0);
   parts.push(p.up.weapons, p.up.armor, p.up.arrows, p.up.summon, p.up.storm);
   for (const e of UI.selected) if (e.mana != null) parts.push(Math.floor(e.mana / 10));
+  for (const e of UI.selected) if (e.type === 'hero') parts.push(e.level, e.abilT > 0 ? Math.ceil(e.abilT / 5) : 0);
   parts.push(Math.floor(p.gold / 10), Math.floor(p.wood / 10));
   return parts.join('|');
 }
@@ -443,6 +455,25 @@ function buildInfoPanel() {
         st.innerHTML = `Attack ${atkOf(e)} · Armor ${armorOf(e)}<br>Range ${d.range} · Sight ${d.sight} · Speed ${d.speed}`;
         if (e.carry) st.innerHTML += `<br>Carrying ${e.carry.amt} ${e.carry.res === 'gold' ? 'gold' : 'lumber'}`;
         if (e.life != null) st.innerHTML += '<br><span class="life"></span>';
+        if (e.type === 'hero') {
+          const H = HERO[G.players[e.owner].faction];
+          const lv = document.createElement('div');
+          lv.className = 'plabel';
+          const xb = document.createElement('div');
+          xb.className = 'xp';
+          const xf = document.createElement('div');
+          xb.appendChild(xf);
+          const au = document.createElement('div');
+          au.className = 'aura';
+          au.innerHTML = `<b>${H.auraName}:</b> ${H.auraDesc}`;
+          extras.push(lv, xb, au);
+          UI.liveEls.push(() => {
+            const next = HERO_XP[e.level];
+            const prev = HERO_XP[e.level - 1];
+            lv.textContent = next ? `Level ${e.level} · ${e.xp - prev} / ${next - prev} XP` : `Level ${e.level} (max)`;
+            xf.style.width = (next ? (e.xp - prev) / (next - prev) * 100 : 100) + '%';
+          });
+        }
         if (e.mana != null) {
           const mb = document.createElement('div');
           mb.className = 'mana';
