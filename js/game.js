@@ -28,6 +28,7 @@ function newGame(opts) {
   G.vis = new Uint8Array(MAP_W * MAP_H);
   G.explored = new Uint8Array(MAP_W * MAP_H);
   G.revealAll = false;
+  G.tut = null;
   const other = opts.faction === 'vikings' ? 'jotnar' : 'vikings';
   G.players = [
     makePlayer(0, opts.faction, false),
@@ -1186,6 +1187,7 @@ function checkVictory() {
   if (G.over) return;
   const aliveP = G.players.map(p => G.ents.some(e => !e.dead && e.owner === p.id));
   if (!aliveP[G.human]) { G.over = 'defeat'; sfx('defeat'); }
+  else if (G.tut) return; // the tutorial decides when it is won
   else if (aliveP.every((a, i) => i === G.human || !a)) { G.over = 'victory'; sfx('victory'); }
 }
 

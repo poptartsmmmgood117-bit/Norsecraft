@@ -18,6 +18,9 @@ To host it for free, use GitHub Pages: **Settings → Pages → Deploy from a br
 
 ## The game
 
+New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk you through mining, building and training, and end with a raid to fight off.
+
+
 - **Economy:** mine gold and chop lumber with workers. Build farms for food (each unit costs 1).
 - **Repair:** workers fix damaged buildings (right-click it, or `E`). A full repair costs about a third of the building's price.
 - **Two mirrored factions**, each with its own units and buildings:
@@ -106,6 +109,7 @@ It then opens full screen from its own icon, like an app, and works offline afte
 | `js/ui.js` | Input, selection, command card, info panel |
 | `js/main.js` | Game loop, synthesized music and voices, menus |
 | `js/save.js` | Save, load and autosave |
+| `js/tutorial.js` | The guided tutorial mission |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Home-screen app and offline support |
 
 Debug URL flags: `?autostart`, `?reveal` (no fog), `?ai=normal` (the computer plays your side too), `&speed=4`, `&faction=jotnar`.

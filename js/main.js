@@ -320,9 +320,15 @@ function initTitle() {
   $('help-close').addEventListener('click', toggleHelp);
   $('menu-btn').addEventListener('click', togglePause);
   $('resume').addEventListener('click', togglePause);
-  $('restart').addEventListener('click', () => { $('pause').style.display = 'none'; G.paused = false; startGame(); });
+  $('restart').addEventListener('click', () => { $('pause').style.display = 'none'; G.paused = false; if (G.tut) startTutorial(); else startGame(); });
+  $('tutorial').addEventListener('click', () => { audioCtx(); startTutorial(); });
+  $('obj-skip').addEventListener('click', e => { e.stopPropagation(); tutSkip(); });
+  $('objective').addEventListener('click', () => $('objective').classList.toggle('min'));
   $('quit').addEventListener('click', toTitle);
-  $('again').addEventListener('click', () => { $('end').style.display = 'none'; startGame(); });
+  $('again').addEventListener('click', () => {
+    $('end').style.display = 'none';
+    if (G.tut && !G.tut.complete) startTutorial(); else startGame();
+  });
   $('to-title').addEventListener('click', toTitle);
   $('mute').addEventListener('click', () => {
     Snd.muted = !Snd.muted;
@@ -373,14 +379,18 @@ function toTitle() {
   G.paused = true;
 }
 
-function startGame() {
-  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed });
-  enterGame();
-  // Small screens start a little zoomed out; frame the hall and its mine.
+// Small screens start a little zoomed out; frame the hall and its mine.
+function frameHome() {
   UI.zoom = Math.max(0.7, Math.min(1, UI.vh / 480));
   const hall = G.ents.find(e => e.type === 'hall' && e.owner === G.human);
   const mine = nearestMine(hall.x, hall.y);
   centerOn((hall.x + mine.x) / 2, (hall.y + mine.y) / 2);
+}
+
+function startGame() {
+  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed });
+  enterGame();
+  frameHome();
   const p = humanPlayer();
   const foe = G.players[1];
   msg(`The ${FACTIONS[foe.faction].short} gather beyond the fjord. Build up and destroy them!`);
@@ -408,6 +418,7 @@ function enterGame() {
   $('save-note').textContent = '';
   resize();
   startMusic();
+  tutRender();
 }
 
 function toggleHelp() {
@@ -430,6 +441,24 @@ function showEnd() {
   $('end-text').textContent = win
     ? `The ${FACTIONS[foe.faction].short} are broken. Skalds will sing of this day.`
     : `Your halls burn. The ${FACTIONS[foe.faction].short} have claimed this land.`;
+  if (G.tut) {
+    tutRender();
+    if (win) {
+      // Point straight at a real game on the gentlest setting.
+      Setup.difficulty = 'beginner';
+      document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x.dataset.diff === 'beginner'));
+    }
+    $('end-title').textContent = win ? 'Tutorial complete' : 'Defeat';
+    $('end-text').textContent = win
+      ? 'The raiders are beaten and your village stands. You are ready for a real battle: try one on Beginner.'
+      : 'The raiders got the better of you this time. Give it another go.';
+    $('again').textContent = win ? 'Play a real game' : 'Try again';
+    $('end-stats').innerHTML = '';
+    $('end').classList.toggle('win', win);
+    $('end').style.display = 'flex';
+    return;
+  }
+  $('again').textContent = 'Play again';
   const t = Math.floor(G.time);
   $('end-stats').innerHTML = `
     <tr><th></th><th>You</th><th>${FACTIONS[foe.faction].short}</th></tr>
@@ -478,6 +507,7 @@ function frame(t) {
     G.autoT -= dt;
     if (G.autoT <= 0) { G.autoT = 60; saveGame('auto', UI.cam, UI.groups); }
   }
+  tutorialUpdate(dt);
   scrollCamera(dt);
   if (UI.mouseWorld) UI.mouseWorld = toWorld(UI.mouse.x, UI.mouse.y);
   UI.hover = UI.mouse.in && UI.mouseWorld ? entityAt(UI.mouseWorld.x, UI.mouseWorld.y) : null;

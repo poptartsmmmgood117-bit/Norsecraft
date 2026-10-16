@@ -50,6 +50,12 @@
     <div id="viewwrap">
       <canvas id="view"></canvas>
       <div id="msgs"></div>
+      <div id="objective" hidden>
+        <div id="obj-step"></div>
+        <div id="obj-title"></div>
+        <div id="obj-text"></div>
+        <button id="obj-skip">Skip step</button>
+      </div>
     </div>
   </main>
 </div>
@@ -83,7 +89,10 @@
       <button class="opt on" data-speed="1">Normal</button>
       <button class="opt" data-speed="1.5">Fast</button>
     </div>
-    <button id="start" class="big">Begin the Saga</button>
+    <div class="start-row">
+      <button id="start" class="big">Begin the Saga</button>
+      <button id="tutorial" class="big alt">Tutorial</button>
+    </div>
     <div id="continue-box" hidden>
       <button id="continue" class="big alt">Continue</button>
       <p id="continue-info" class="fine"></p>
@@ -159,6 +168,7 @@
 <script src="js/save.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

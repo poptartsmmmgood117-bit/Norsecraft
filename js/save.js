@@ -46,6 +46,7 @@ function serializeGame(cam, groups) {
     effects: G.effects.filter(f => f.type === 'corpse' || f.type === 'rubble'),
     ai: aiState(G.ai),
     ai2: aiState(G.ai2),
+    tut: G.tut || null,
     cam: cam ? { x: cam.x, y: cam.y } : null,
     groups: groupIds,
   });
@@ -78,6 +79,7 @@ function restoreGame(json) {
   G.msgs = [];
   G.ai = restoreAI(d.ai);
   G.ai2 = restoreAI(d.ai2);
+  G.tut = d.tut || null;
   G.vis = new Uint8Array(MAP_W * MAP_H);
   G.explored = Uint8Array.from(d.explored);
   G.over = null;

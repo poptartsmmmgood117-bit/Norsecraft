@@ -1,9 +1,9 @@
 // Offline support: serve from the network when possible so updates arrive
 // right away, and fall back to the cached copy when offline.
-const CACHE = 'norsecraft-v1';
+const CACHE = 'norsecraft-v2';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
-  'js/data.js', 'js/map.js', 'js/path.js', 'js/game.js', 'js/ai.js', 'js/save.js', 'js/render.js', 'js/ui.js', 'js/main.js',
+  'js/data.js', 'js/map.js', 'js/path.js', 'js/game.js', 'js/ai.js', 'js/save.js', 'js/render.js', 'js/ui.js', 'js/tutorial.js', 'js/main.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

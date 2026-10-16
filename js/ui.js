@@ -321,7 +321,7 @@ function getCommands() {
 
 function commandSig() {
   const p = humanPlayer();
-  const parts = [UI.menu, UI.targeting || '', UI.placing || ''];
+  const parts = [UI.menu, UI.targeting || '', UI.placing || '', G.tut ? G.tut.step : ''];
   for (const e of UI.selected) {
     parts.push(e.id, e.owner, e.built ? 1 : 0, e.hidden ? 1 : 0, e.carry ? e.carry.res : '');
     if (e.kind === 'bldg') parts.push(e.queue.map(q => q.unit || q.research).join(','));
@@ -360,6 +360,7 @@ function buildCommandCard() {
     if (!c) { b.disabled = true; b.classList.add('empty'); el.appendChild(b); continue; }
     if (c.disabled) b.classList.add('locked');
     if (c.poor) b.classList.add('poor');
+    if (typeof tutorialHint === 'function' && tutorialHint(c.key)) b.classList.add('hint');
     if (c.icon) {
       const cv = document.createElement('canvas');
       cv.width = 44; cv.height = 44;
