@@ -7,6 +7,9 @@ No build step and no dependencies. Plain HTML, CSS and JavaScript on a `<canvas>
 
 ## Play
 
+Watch the one-minute trailer first: open `trailer.html` (it is drawn live by the game's own code).
+
+
 Open `index.html` through any static web server:
 
 ```sh
@@ -139,6 +142,7 @@ It then opens full screen from its own icon, like an app, and works offline afte
 | `js/save.js` | Save, load and autosave |
 | `js/tutorial.js` | The guided tutorial mission |
 | `js/campaign.js` | Campaign chapters, briefings and progress |
+| `trailer.html`, `js/trailer.js` | The animated trailer |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Home-screen app and offline support |
 
 Debug URL flags: `?autostart`, `?reveal` (no fog), `?ai=normal` (the computer plays your side too), `&speed=4`, `&faction=jotnar`.
