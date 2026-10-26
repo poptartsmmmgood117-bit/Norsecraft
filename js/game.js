@@ -6,14 +6,32 @@ const G = {
   projectiles: [], effects: [], areas: [], msgs: [],
   players: [], human: 0, time: 0, over: null,
   vis: null, explored: null, visT: 0, checkT: 0,
-  ai: null, speed: 1, paused: false, attackMsgT: 0,
+  ais: [], speed: 1, paused: false, attackMsgT: 0,
 };
+
+// G.ai is the computer in slot 1 and G.ai2 the optional computer for slot 0;
+// both are views onto G.ais, which holds every computer player.
+for (const [key, pid] of [['ai', 1], ['ai2', 0]]) {
+  Object.defineProperty(G, key, {
+    get() { return this.ais.find(a => a.pid === pid) || null; },
+    set(v) { this.ais = this.ais.filter(a => a.pid !== pid); if (v) this.ais.push(v); },
+  });
+}
+function aiFor(pid) { return G.ais.find(a => a.pid === pid) || null; }
+
+function setMapSize(n) {
+  MAP_W = n;
+  MAP_H = n;
+  ensurePathBuffers();
+}
 
 // ---------- setup ----------
 
 function newGame(opts) {
   const seed = opts.seed || (Math.random() * 1e9) | 0;
-  G.map = new GameMap(seed);
+  setMapSize(opts.size || MAP_SIZES.medium);
+  const nPlayers = 1 + Math.max(1, Math.min(3, opts.foes || 1));
+  G.map = new GameMap(seed, nPlayers);
   G.ents = [];
   G.byId = new Map();
   G.nextId = 1;
@@ -31,38 +49,53 @@ function newGame(opts) {
   G.tut = null;
   G.mission = null;
   const other = opts.faction === 'vikings' ? 'jotnar' : 'vikings';
-  G.players = [
-    makePlayer(0, opts.faction, false),
-    makePlayer(1, other, true),
-  ];
+  G.players = [makePlayer(0, opts.faction, false, 0)];
+  // Foes alternate factions; allied foes share a team, free-for-all foes do not.
+  for (let i = 1; i < nPlayers; i++) G.players.push(makePlayer(i, i % 2 ? other : opts.faction, true, opts.ffa ? i : 1));
+  const used = new Set();
+  for (const p of G.players) {
+    let c = PLAYER_COLORS.find(c => c.hex === FACTIONS[p.faction].color);
+    if (used.has(c.hex)) c = PLAYER_COLORS.find(c => !used.has(c.hex));
+    used.add(c.hex);
+    p.color = c.hex;
+    p.colorName = c.name;
+  }
   G.human = 0;
 
   for (const m of G.map.mines) spawnBuilding('mine', -1, m.x, m.y, true);
   G.players.forEach((p, i) => {
     const s = G.map.starts[i];
     spawnBuilding('hall', p.id, s.x, s.y, true);
-    const dir = i === 0 ? 1 : -1;
+    // Workers stand on the side of the hall that faces the middle of the map.
+    const dx = s.x < MAP_W / 2 ? 1 : -1, dy = s.y < MAP_H / 2 ? 1 : -1;
     for (let k = 0; k < 4; k++) {
-      const t = nearestWalkable(G.map, s.x + 1 + dir * (k % 2 === 0 ? 3 : 4), s.y + 1 + dir * (k < 2 ? 0 : 1) - dir, 6);
+      const t = nearestWalkable(G.map, s.x + 1 + dx * (k % 2 === 0 ? 3 : 4), s.y + 1 + dy * (k < 2 ? 0 : 1) - dy, 6);
       if (t) spawnUnit('worker', p.id, t.x, t.y);
     }
   });
-  G.ai = new AI(1, opts.difficulty || 'normal');
+  G.ais = G.players.filter(p => p.ai).map(p => new AI(p.id, opts.difficulty || 'normal'));
   if (opts.aiForHuman) G.ai2 = new AI(0, opts.difficulty || 'normal');
-  else G.ai2 = null;
   updateFood();
   updateVisibility();
 }
 
-function makePlayer(id, faction, ai) {
+function makePlayer(id, faction, ai, team = id) {
   return {
-    id, faction, ai, gold: 600, wood: 400, food: 0, foodCap: 0,
+    id, faction, ai, team, gold: 600, wood: 400, food: 0, foodCap: 0,
     up: { weapons: 0, armor: 0, arrows: 0, summon: 0, storm: 0 },
     color: FACTIONS[faction].color, stats: { killed: 0, lost: 0, gold: 0, wood: 0 },
   };
 }
 
 function humanPlayer() { return G.players[G.human]; }
+
+// "Purple Vikings", or just "Jötnar" when there is only one foe.
+function playerName(pid) {
+  const p = G.players[pid];
+  if (!p) return 'Neutral';
+  const short = FACTIONS[p.faction].short;
+  return G.players.length > 2 && p.colorName ? `${p.colorName} ${short}` : short;
+}
 
 // ---------- entities ----------
 
@@ -109,7 +142,12 @@ function tileDist(u, e) {
   const t = tileOf(u);
   return rectDist(t.x, t.y, entRect(e));
 }
-function isEnemy(a, b) { return a.owner >= 0 && b.owner >= 0 && a.owner !== b.owner; }
+function hostile(p, q) {
+  if (p === q || p < 0 || q < 0) return false;
+  const a = G.players[p], b = G.players[q];
+  return !a || !b || a.team !== b.team;
+}
+function isEnemy(a, b) { return hostile(a.owner, b.owner); }
 function alive(e) { return e && !e.dead; }
 function defOf(e) { return e.kind === 'unit' ? UNITS[e.type] : BUILDINGS[e.type]; }
 function nameOf(e) {
@@ -447,8 +485,8 @@ function damage(src, t, atk, mult = 1) {
     if (Math.hypot(e.x - t.x, e.y - t.y) > TILE * 7) continue;
     e.order = { type: 'attack', target: attacker.id, auto: true, home: { x: e.x, y: e.y }, repath: 0 };
   }
-  if (G.ai && t.owner === G.ai.pid) G.ai.alert(attacker);
-  if (G.ai2 && t.owner === G.ai2.pid) G.ai2.alert(attacker);
+  const ai = aiFor(t.owner);
+  if (ai) ai.alert(attacker);
 }
 
 function kill(t, src) {
@@ -527,7 +565,8 @@ function nearestMine(x, y, exclude) {
 function deposit(u) {
   const p = G.players[u.owner];
   let amt = u.carry.amt;
-  if (G.ai && u.owner === G.ai.pid) amt = Math.round(amt * G.ai.diff.gather);
+  const ai = aiFor(u.owner);
+  if (ai && ai !== G.ai2) amt = Math.round(amt * ai.diff.gather);
   p[u.carry.res] += amt;
   p.stats[u.carry.res] += amt;
   u.carry = null;
@@ -820,8 +859,8 @@ function finishTraining(b, type) {
     else cmdMove([u], r.x, r.y, false);
   }
   if (type === 'hero') applyHeroLevel(u);
-  if (G.ai && b.owner === G.ai.pid) G.ai.onTrained(u);
-  if (G.ai2 && b.owner === G.ai2.pid) G.ai2.onTrained(u);
+  const ai = aiFor(b.owner);
+  if (ai) ai.onTrained(u);
 }
 
 function updateFood() {
@@ -1098,7 +1137,7 @@ function updateAreas(dt) {
     a.ticks--;
     const src = { id: a.src, owner: a.owner, type: 'caster' };
     for (const e of G.ents) {
-      if (e.dead || e.hidden || e.owner < 0 || e.owner === a.owner) continue;
+      if (e.dead || e.hidden || !hostile(a.owner, e.owner)) continue;
       let d;
       if (e.kind === 'bldg') {
         const cx = Math.max(e.tx * TILE, Math.min(a.x, (e.tx + e.w) * TILE));
@@ -1279,10 +1318,15 @@ function tileVisible(px, py) {
 
 function checkVictory() {
   if (G.over) return;
-  const aliveP = G.players.map(p => G.ents.some(e => !e.dead && e.owner === p.id));
-  if (!aliveP[G.human]) { G.over = 'defeat'; sfx('defeat'); }
-  else if (G.tut || G.mission) return; // scripted modes decide when they are won
-  else if (aliveP.every((a, i) => i === G.human || !a)) { G.over = 'victory'; sfx('victory'); }
+  const alive = pid => G.ents.some(e => !e.dead && e.owner === pid);
+  for (const p of G.players) {
+    if (p.id === G.human || p.out || alive(p.id)) continue;
+    p.out = true;
+    if (G.players.length > 2) msg(`The ${playerName(p.id)} have been wiped out!`);
+  }
+  if (!alive(G.human)) { G.over = 'defeat'; sfx('defeat'); return; }
+  if (G.tut || G.mission) return; // scripted modes decide when they are won
+  if (G.players.every(p => !hostile(G.human, p.id) || !alive(p.id))) { G.over = 'victory'; sfx('victory'); }
 }
 
 // ---------- main tick ----------
@@ -1309,8 +1353,7 @@ function tick(dt) {
     });
     updateFood();
   }
-  if (G.ai) G.ai.update(dt);
-  if (G.ai2) G.ai2.update(dt);
+  for (const ai of G.ais) ai.update(dt);
   G.visT -= dt;
   if (G.visT <= 0) { G.visT = 0.2; updateVisibility(); }
   G.checkT -= dt;

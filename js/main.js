@@ -283,7 +283,7 @@ function setMusic(on) {
 
 // ---------- screens ----------
 
-const Setup = { faction: 'vikings', difficulty: 'normal', speed: 1 };
+const Setup = { faction: 'vikings', difficulty: 'normal', speed: 1, size: 'medium', foes: 1, ffa: false };
 
 function initTitle() {
   document.querySelectorAll('[data-faction]').forEach(b => b.addEventListener('click', () => {
@@ -294,6 +294,13 @@ function initTitle() {
     Setup.difficulty = b.dataset.diff;
     document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
   }));
+  const pick = (attr, apply) => document.querySelectorAll(`[${attr}]`).forEach(b => b.addEventListener('click', () => {
+    apply(b.getAttribute(attr));
+    document.querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x === b));
+  }));
+  pick('data-size', v => { Setup.size = v; });
+  pick('data-foes', v => { Setup.foes = +v; $('team-opts').hidden = Setup.foes < 2; });
+  pick('data-ffa', v => { Setup.ffa = v === '1'; });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
     Setup.speed = +b.dataset.speed;
     document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
@@ -404,12 +411,14 @@ function frameHome() {
 }
 
 function startGame() {
-  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed });
+  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed, size: MAP_SIZES[Setup.size], foes: Setup.foes, ffa: Setup.ffa });
   enterGame();
   frameHome();
   const p = humanPlayer();
-  const foe = G.players[1];
-  msg(`The ${FACTIONS[foe.faction].short} gather beyond the fjord. Build up and destroy them!`);
+  const foes = G.players.length - 1;
+  msg(foes === 1 ? `The ${playerName(1)} gather beyond the fjord. Build up and destroy them!`
+    : Setup.ffa ? `${foes} warbands fight over this land, and every one of them is your enemy. Be the last one standing!`
+    : `${foes} warbands have sworn to destroy you. Build up and break them all!`);
   msg(UI.touch ? `Tap a ${unitName('worker', p.faction)}, then tap the gold mine to start mining.`
     : `Right-click the gold mine with your ${unitName('worker', p.faction)}s to start mining.`);
   msg('More gold lies out in the wilds. Look for the gold marks on the minimap.');
@@ -455,7 +464,7 @@ function showEnd() {
   const foe = G.players[1];
   $('end-title').textContent = win ? 'Victory' : 'Defeat';
   $('end-text').textContent = win
-    ? `The ${FACTIONS[foe.faction].short} are broken. Skalds will sing of this day.`
+    ? (G.players.length > 2 ? 'Every rival warband is broken. Skalds will sing of this day.' : `The ${FACTIONS[foe.faction].short} are broken. Skalds will sing of this day.`)
     : `Your halls burn. The ${FACTIONS[foe.faction].short} have claimed this land.`;
   if (G.tut) {
     tutRender();
@@ -485,13 +494,12 @@ function showEnd() {
     $('again').textContent = win ? (last ? 'Back to the saga' : `Chapter ${i + 2}: ${MISSIONS[i + 1].name}`) : 'Try again';
   }
   const t = Math.floor(G.time);
+  const cols = G.players;
+  const row = (label, key) => `<tr><td>${label}</td>${cols.map(q => `<td>${q.stats[key]}</td>`).join('')}</tr>`;
   $('end-stats').innerHTML = `
-    <tr><th></th><th>You</th><th>${FACTIONS[foe.faction].short}</th></tr>
-    <tr><td>Gold mined</td><td>${p.stats.gold}</td><td>${foe.stats.gold}</td></tr>
-    <tr><td>Lumber cut</td><td>${p.stats.wood}</td><td>${foe.stats.wood}</td></tr>
-    <tr><td>Kills</td><td>${p.stats.killed}</td><td>${foe.stats.killed}</td></tr>
-    <tr><td>Losses</td><td>${p.stats.lost}</td><td>${foe.stats.lost}</td></tr>
-    <tr><td>Time</td><td colspan="2">${Math.floor(t / 60)}m ${t % 60}s</td></tr>`;
+    <tr><th></th>${cols.map(q => `<th>${q.id === G.human ? 'You' : playerName(q.id)}</th>`).join('')}</tr>
+    ${row('Gold mined', 'gold')}${row('Lumber cut', 'wood')}${row('Kills', 'killed')}${row('Losses', 'lost')}
+    <tr><td>Time</td><td colspan="${cols.length}">${Math.floor(t / 60)}m ${t % 60}s</td></tr>`;
   $('end').classList.toggle('win', win);
   $('end').style.display = 'flex';
 }

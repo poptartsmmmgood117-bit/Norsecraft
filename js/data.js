@@ -2,8 +2,16 @@
 // Static game data: map constants, factions, units, buildings, upgrades.
 
 const TILE = 32;
-const MAP_W = 64;
-const MAP_H = 64;
+// The map size can change per game (see setMapSize); 64x64 is the classic size.
+let MAP_W = 64;
+let MAP_H = 64;
+const MAP_SIZES = { small: 48, medium: 64, large: 96 };
+
+// Colours for extra players, so several armies of one faction stay distinct.
+const PLAYER_COLORS = [
+  { hex: '#b8322a', name: 'Red' }, { hex: '#2a86b8', name: 'Blue' },
+  { hex: '#8a46c4', name: 'Purple' }, { hex: '#d0882a', name: 'Orange' }, { hex: '#2f9a54', name: 'Green' },
+];
 
 const T = { GRASS: 0, SNOW: 1, FOREST: 2, WATER: 3, ROCK: 4, STUMP: 5 };
 const WOOD_PER_TREE = 100;

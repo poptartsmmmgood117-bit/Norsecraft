@@ -32,7 +32,9 @@ function fbm(x, y, seed) {
 }
 
 class GameMap {
-  constructor(seed) {
+  constructor(seed, players = 2) {
+    this.players = players;
+    ensurePathBuffers();
     this.w = MAP_W;
     this.h = MAP_H;
     this.seed = seed;
@@ -77,6 +79,7 @@ class GameMap {
   }
 
   generate() {
+    if (this.players > 2) return this.generateQuad();
     const W = this.w, H = this.h, seed = this.seed;
     const rng = makeRng(seed);
     for (let y = 0; y < H; y++) {
@@ -136,6 +139,59 @@ class GameMap {
       { x: W / 2 + 10, y: H / 2 - 11 },
     ];
     this.dirty.length = 0;
+  }
+
+  // Four bases, one per corner: build the top-left quarter and mirror it
+  // both ways so every player gets the same land.
+  generateQuad() {
+    const W = this.w, H = this.h, seed = this.seed;
+    const rng = makeRng(seed);
+    this.noiseFill(rng);
+    const P = { x: 9, y: 9 };
+    const hw = W / 2, hh = H / 2;
+    const jx = Math.floor(rng() * 5) - 2, jy = Math.floor(rng() * 5) - 2;
+    this.carveLine(P.x, P.y, hw - 1, P.y + 2 + jy, 1, T.GRASS);
+    this.carveLine(P.x, P.y, P.x + 2 + jx, hh - 1, 1, T.SNOW);
+    this.carveLine(P.x, P.y, hw - 1, hh - 1, 1, T.GRASS);
+    this.clearArea(P.x - 6, P.y - 6, 14, 14);
+    this.blob(P.x + 9, P.y - 3, 4, T.FOREST, rng);
+    this.blob(P.x - 3, P.y + 9, 4, T.FOREST, rng);
+    const mid = { x: hw - 9, y: hh - 9 };
+    if (W >= 64) this.clearArea(mid.x - 2, mid.y - 2, 7, 7);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (x < hw && y < hh) continue;
+        const sx = x < hw ? x : W - 1 - x, sy = y < hh ? y : H - 1 - y;
+        this.tiles[this.idx(x, y)] = this.tiles[this.idx(sx, sy)];
+      }
+    }
+    for (let i = 0; i < W * H; i++) this.wood[i] = this.tiles[i] === T.FOREST ? WOOD_PER_TREE : 0;
+    const mirror = (x, y, w, h) => [
+      { x, y }, { x: W - x - w, y: H - y - h }, { x: W - x - w, y }, { x, y: H - y - h },
+    ];
+    // Order matches player slots: you top-left, first foe bottom-right, then the other corners.
+    this.starts = mirror(P.x - 1, P.y - 1, 3, 3);
+    this.mines = mirror(P.x + 5, P.y + 5, 3, 3);
+    if (W >= 64) this.mines.push(...mirror(mid.x, mid.y, 3, 3));
+    this.dirty.length = 0;
+  }
+
+  noiseFill(rng) {
+    const W = this.w, H = this.h, seed = this.seed;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const f = fbm(x / 7, y / 7, seed + 1);
+        const w = fbm(x / 11, y / 11, seed + 2);
+        const r = fbm(x / 5, y / 5, seed + 3);
+        const s = fbm(x / 9, y / 9, seed + 4);
+        let t = s > 0.55 ? T.SNOW : T.GRASS;
+        if (w > 0.7) t = T.WATER;
+        else if (r > 0.74) t = T.ROCK;
+        else if (f > 0.58) t = T.FOREST;
+        if (x === 0 || y === 0 || x === W - 1 || y === H - 1) t = rng() < 0.5 ? T.FOREST : T.ROCK;
+        this.tiles[this.idx(x, y)] = t;
+      }
+    }
   }
 
   clearArea(x0, y0, w, h) {

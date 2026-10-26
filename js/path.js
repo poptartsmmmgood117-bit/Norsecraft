@@ -50,12 +50,22 @@ class Heap {
   }
 }
 
-const _g = new Float32Array(MAP_W * MAP_H);
-const _from = new Int32Array(MAP_W * MAP_H);
-const _stamp = new Uint32Array(MAP_W * MAP_H);
+let _g = new Float64Array(MAP_W * MAP_H);
+let _from = new Int32Array(MAP_W * MAP_H);
+let _stamp = new Uint32Array(MAP_W * MAP_H);
 let _stampN = 0;
 
-function findPath(map, sx, sy, goal, maxNodes = 6000) {
+// Search buffers follow the map size.
+function ensurePathBuffers() {
+  const n = MAP_W * MAP_H;
+  if (_g.length === n) return;
+  _g = new Float64Array(n);
+  _from = new Int32Array(n);
+  _stamp = new Uint32Array(n);
+  _stampN = 0;
+}
+
+function findPath(map, sx, sy, goal, maxNodes = Math.max(6000, (MAP_W * MAP_H * 0.7) | 0)) {
   const W = map.w;
   const range = goal.range || 0;
   const minRange = goal.minRange || 0;
@@ -88,7 +98,8 @@ function findPath(map, sx, sy, goal, maxNodes = 6000) {
       if (k >= 4 && (!map.isWalkable(cx + d[0], cy) || !map.isWalkable(cx, cy + d[1]))) continue;
       const ni = ny * W + nx;
       const ng = cg + d[2];
-      if (_stamp[ni] === _stampN && _g[ni] <= ng) continue;
+      // Only a clearly cheaper route counts; equal-cost ties must not reopen nodes.
+      if (_stamp[ni] === _stampN && _g[ni] <= ng + 1e-9) continue;
       _stamp[ni] = _stampN;
       _g[ni] = ng;
       _from[ni] = cur;

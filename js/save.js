@@ -32,6 +32,7 @@ function serializeGame(cam, groups) {
     v: 1,
     savedAt: Date.now(),
     seed: G.map.seed,
+    mapW: MAP_W,
     tiles: Array.from(G.map.tiles),
     wood: Array.from(G.map.wood),
     explored: Array.from(G.explored),
@@ -44,8 +45,7 @@ function serializeGame(cam, groups) {
     projectiles: G.projectiles,
     areas: G.areas,
     effects: G.effects.filter(f => f.type === 'corpse' || f.type === 'rubble'),
-    ai: aiState(G.ai),
-    ai2: aiState(G.ai2),
+    ais: G.ais.map(aiState),
     tut: G.tut || null,
     mission: G.mission || null,
     cam: cam ? { x: cam.x, y: cam.y } : null,
@@ -56,7 +56,8 @@ function serializeGame(cam, groups) {
 function restoreGame(json) {
   const d = JSON.parse(json);
   if (!d || d.v !== 1) throw new Error('Unknown save format');
-  G.map = new GameMap(d.seed);
+  setMapSize(d.mapW || MAP_SIZES.medium);
+  G.map = new GameMap(d.seed, d.players.length);
   G.map.tiles.set(d.tiles);
   G.map.wood.set(d.wood);
   G.map.bldg.fill(0);
@@ -78,8 +79,8 @@ function restoreGame(json) {
   G.areas = d.areas || [];
   G.effects = d.effects || [];
   G.msgs = [];
-  G.ai = restoreAI(d.ai);
-  G.ai2 = restoreAI(d.ai2);
+  // Older saves stored the two computer players separately.
+  G.ais = (d.ais || [d.ai, d.ai2]).filter(Boolean).map(restoreAI);
   G.tut = d.tut || null;
   G.mission = d.mission || null;
   G.vis = new Uint8Array(MAP_W * MAP_H);

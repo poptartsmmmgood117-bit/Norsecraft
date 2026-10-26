@@ -74,6 +74,7 @@ New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk y
   Summoned units fade after 45 seconds and cost no food.
 - **Save and load** from the pause menu. The game also autosaves every minute and when you leave the page, so **Continue** on the title screen picks up where you left off. Saves stay in your browser.
 - **Music and voices:** a generated Norse score (drone, frame drum and lyre) that picks up drums during battle, plus short voice replies from your units. Both are made in code; toggle music with ♫.
+- **Skirmish options:** small (48×48), medium (64×64) or large (96×96) maps, and 1–3 computer foes. With two or more foes, choose **Allied** (they all fight you) or **Free-for-all** (everyone fights everyone). Games with 3–4 sides use a mirrored map with a base in each corner.
 - **Computer opponent** with Beginner, Easy, Normal and Hard settings. It runs an economy, builds a base, defends itself and attacks in growing waves.
 - Fog of war, minimap, control groups, attack-move, rally points, hold position, and procedurally generated mirrored maps.
 

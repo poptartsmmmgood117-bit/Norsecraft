@@ -215,7 +215,7 @@ function drawMinimap(ctx, cam, vw, vh) {
   for (const e of G.ents) {
     if (e.dead || e.hidden || !isVisibleEnt(e)) continue;
     ctx.fillStyle = e.owner < 0 ? '#e8c547' : e.owner === G.human ? '#7cf06a' : G.players[e.owner].color;
-    if (e.owner >= 0 && e.owner !== G.human) ctx.fillStyle = '#ff5040';
+    if (e.owner >= 0 && e.owner !== G.human && G.players.length <= 2) ctx.fillStyle = '#ff5040';
     if (e.kind === 'bldg') ctx.fillRect(e.tx * sx, e.ty * sy, e.w * sx, e.h * sy);
     else ctx.fillRect(e.x / TILE * sx - 1.5, e.y / TILE * sy - 1.5, 3, 3);
   }

@@ -276,3 +276,19 @@ button { touch-action: manipulation; }
 #info .xp div { height: 100%; width: 0; background: linear-gradient(90deg, #b08d57, #ffd86a); }
 #info .aura { margin-top: 6px; color: #cfc6b2; line-height: 1.35; }
 #info .aura b { color: var(--accent); }
+
+.row { flex-wrap: wrap; }
+.row .sep { display: inline-flex; gap: 8px; margin-left: 10px; padding-left: 14px; border-left: 1px solid #3a3226; }
+.row .sep[hidden] { display: none; }
+#end-stats th { font-size: 13px; }
+@media (max-height: 460px) {
+  .sub { display: none; }
+  .title-panel { padding: 10px 14px; margin: 6px; }
+  .faction { padding: 7px 10px; }
+  .faction h3 { font-size: 14px; }
+  .pv { margin-top: 5px; }
+  .row { margin-top: 5px; gap: 6px; }
+  .opt { padding: 3px 10px; font-size: 13px; }
+  .row .sep { gap: 6px; margin-left: 4px; padding-left: 8px; }
+  .big, .start-row .big.alt { margin-top: 8px; padding: 6px 16px; font-size: 14px; }
+}

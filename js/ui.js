@@ -436,7 +436,7 @@ function buildInfoPanel() {
     top.appendChild(cv);
     const txt = document.createElement('div');
     txt.className = 'meta';
-    const owner = e.owner < 0 ? 'Neutral' : e.owner === G.human ? 'Yours' : FACTIONS[f].short;
+    const owner = e.owner < 0 ? 'Neutral' : e.owner === G.human ? 'Yours' : playerName(e.owner) + (hostile(G.human, e.owner) ? '' : ' (ally)');
     txt.innerHTML = `<div class="nm">${nameOf(e)}</div><div class="own">${owner}</div>`;
     const hp = document.createElement('div');
     hp.className = 'hpt';

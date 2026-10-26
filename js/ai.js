@@ -38,7 +38,9 @@ class AI {
     if (u.type === 'worker') return;
     const hall = this.mainHall();
     if (hall) {
-      const t = nearestWalkable(G.map, hall.tx + (this.pid === 0 ? 5 : -3), hall.ty + (this.pid === 0 ? 5 : -3), 6);
+      // Gather new troops on the side of the hall that faces the map's centre.
+      const dx = hall.x < MAP_W * TILE / 2 ? 5 : -3, dy = hall.y < MAP_H * TILE / 2 ? 5 : -3;
+      const t = nearestWalkable(G.map, hall.tx + dx, hall.ty + dy, 6);
       if (t) cmdMove([u], t.x, t.y, true);
     }
   }
@@ -134,7 +136,7 @@ class AI {
       for (const b of bldgs) {
         if (!b.built || b.hp >= b.maxHp * 0.9) continue;
         if (workers.some(w => w.order && w.order.type === 'repair' && w.order.bid === b.id)) continue;
-        if (G.ents.some(e => !e.dead && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid && Math.hypot(e.x - b.x, e.y - b.y) < TILE * 8)) continue;
+        if (G.ents.some(e => !e.dead && e.kind === 'unit' && hostile(this.pid, e.owner) && Math.hypot(e.x - b.x, e.y - b.y) < TILE * 8)) continue;
         const w = this.pickBuilder(workers.filter(w => !(w.order && w.order.type === 'repair')), b);
         if (w) { cmdRepair([w], b); break; }
       }
@@ -189,7 +191,7 @@ class AI {
     // Use the hero's ability in fights.
     const hero = heroOf(this.pid);
     if (hero && heroAbilityReady(hero)) {
-      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid &&
+      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && hostile(this.pid, e.owner) &&
         Math.hypot(e.x - hero.x, e.y - hero.y) < TILE * (HERO[p.faction].ability === 'quake' ? 2.2 : 5));
       if (near.length >= 2) useHeroAbility(hero);
     }
@@ -221,7 +223,7 @@ class AI {
   castSpells(army) {
     for (const u of army) {
       if (u.type !== 'caster' || u.hidden || (u.order && u.order.type === 'cast')) continue;
-      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && e.owner >= 0 && e.owner !== this.pid &&
+      const near = G.ents.filter(e => !e.dead && !e.hidden && e.kind === 'unit' && hostile(this.pid, e.owner) &&
         Math.hypot(e.x - u.x, e.y - u.y) < TILE * 8);
       if (!near.length) continue;
       if (spellReady(u, 'storm')) {
@@ -241,7 +243,7 @@ class AI {
   findThreat(hall) {
     let best = null, bd = TILE * 13;
     for (const e of G.ents) {
-      if (e.dead || e.hidden || e.owner < 0 || e.owner === this.pid || e.kind !== 'unit') continue;
+      if (e.dead || e.hidden || !hostile(this.pid, e.owner) || e.kind !== 'unit') continue;
       const d = Math.hypot(e.x - hall.x, e.y - hall.y);
       if (d < bd) { bd = d; best = e; }
     }
@@ -253,7 +255,7 @@ class AI {
     const c = units[0];
     let best = null, bd = 1e9;
     for (const e of G.ents) {
-      if (e.dead || e.owner < 0 || e.owner === this.pid || e.hidden) continue;
+      if (e.dead || !hostile(this.pid, e.owner) || e.hidden) continue;
       if (!any && e.kind !== 'bldg' && G.ents.some(b => !b.dead && b.kind === 'bldg' && b.owner === e.owner)) continue;
       const d = Math.hypot(e.x - c.x, e.y - c.y);
       if (d < bd) { bd = d; best = e; }
