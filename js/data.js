@@ -13,7 +13,8 @@ const PLAYER_COLORS = [
   { hex: '#8a46c4', name: 'Purple' }, { hex: '#d0882a', name: 'Orange' }, { hex: '#2f9a54', name: 'Green' },
 ];
 
-const T = { GRASS: 0, SNOW: 1, FOREST: 2, WATER: 3, ROCK: 4, STUMP: 5 };
+// FORD: shallow water that both land units and ships can cross.
+const T = { GRASS: 0, SNOW: 1, FOREST: 2, WATER: 3, ROCK: 4, STUMP: 5, FORD: 6 };
 const WOOD_PER_TREE = 100;
 const CARRY = 10;
 const WOOD_CARRY = 20;
@@ -86,6 +87,19 @@ const UNITS = {
     gold: 300, wood: 150, time: 30, hotkey: 'J', req: ['barracks'],
     names: { vikings: 'Sigrún Shield-Maiden', jotnar: 'Hrungnir Stone-Heart' },
     desc: 'Your hero. Only one at a time; grows stronger with every battle and keeps their level if called again after falling.',
+  },
+  // Ships sail on water only and are built at a shipyard.
+  transport: {
+    hp: 160, atk: 0, armor: 2, range: 0, cd: 1, speed: 2.2, sight: 6, naval: true, capacity: 6,
+    gold: 120, wood: 120, time: 22, hotkey: 'K', req: ['shipyard'],
+    names: { vikings: 'Knarr', jotnar: 'Ice Raft' },
+    desc: 'Carries up to 6 land units across the water. Unarmed.',
+  },
+  warship: {
+    hp: 220, atk: 13, armor: 3, range: 5, cd: 1.8, speed: 1.9, sight: 7, naval: true, projectile: 'rock',
+    gold: 200, wood: 180, time: 30, hotkey: 'D', req: ['shipyard'],
+    names: { vikings: 'Drakkar', jotnar: 'Naglfar' },
+    desc: 'War galley that bombards the shore and other ships from range.',
   },
   // Summoned by spells only; they fade when their time runs out.
   einherjar: {
@@ -179,6 +193,12 @@ const BUILDINGS = {
     names: { vikings: 'Watchtower', jotnar: 'Ice Spire' },
     desc: 'Defensive tower that shoots nearby enemies.',
   },
+  shipyard: {
+    w: 3, h: 3, hp: 800, armor: 2, gold: 150, wood: 200, time: 32, sight: 6, coastal: true,
+    hotkey: 'Y', req: ['mill'], trains: ['transport', 'warship'], dropoff: ['wood'],
+    names: { vikings: 'Naust', jotnar: 'Ice Harbor' },
+    desc: 'Builds ships. Must be built on the shore of open water.',
+  },
   temple: {
     w: 2, h: 2, hp: 600, armor: 1, gold: 150, wood: 150, time: 30, sight: 5,
     hotkey: 'H', req: ['barracks'], trains: ['caster'], research: ['summon', 'storm'],
@@ -191,7 +211,7 @@ const BUILDINGS = {
   },
 };
 
-const BUILD_ORDER = ['hall', 'farm', 'barracks', 'mill', 'stable', 'forge', 'temple', 'tower'];
+const BUILD_ORDER = ['hall', 'farm', 'barracks', 'mill', 'stable', 'forge', 'temple', 'tower', 'shipyard'];
 
 const RESEARCH = {
   weapons: { gold: 200, wood: 100, time: 30, hotkey: 'E', name: 'Runed Blades', desc: '+2 attack for melee fighters and riders.' },

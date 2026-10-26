@@ -32,8 +32,9 @@ function fbm(x, y, seed) {
 }
 
 class GameMap {
-  constructor(seed, players = 2) {
+  constructor(seed, players = 2, fjords = false) {
     this.players = players;
+    this.fjords = fjords;
     ensurePathBuffers();
     this.w = MAP_W;
     this.h = MAP_H;
@@ -45,6 +46,85 @@ class GameMap {
     this.starts = [];
     this.mines = [];
     this.generate();
+    this.ensureConnected();
+    this.findWaterBodies();
+  }
+
+  // Safety net: every base and gold mine must be reachable on foot from the
+  // first base. Anything cut off gets a road (or a ford over water) to the rest.
+  ensureConnected() {
+    const W = this.w, H = this.h;
+    // Halls and mines will stand here and block movement.
+    const solid = new Uint8Array(W * H);
+    for (const r of [...this.starts, ...this.mines]) for (let y = r.y; y < r.y + 3; y++) for (let x = r.x; x < r.x + 3; x++) solid[this.idx(x, y)] = 1;
+    for (let pass = 0; pass < 3; pass++) {
+      const seen = new Uint8Array(W * H);
+      const s = this.starts[0];
+      const q = [this.idx(s.x + 1, s.y + 3)];
+      seen[q[0]] = 1;
+      for (let h = 0; h < q.length; h++) {
+        const c = q[h], x = c % W, y = (c / W) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (!this.isGround(nx, ny)) continue;
+          const j = this.idx(nx, ny);
+          if (seen[j] || solid[j]) continue;
+          seen[j] = 1;
+          q.push(j);
+        }
+      }
+      let fixed = false;
+      for (const r of [...this.starts, ...this.mines]) {
+        let ok = false;
+        for (let y = r.y - 1; y <= r.y + 3 && !ok; y++) for (let x = r.x - 1; x <= r.x + 3; x++) if (this.inBounds(x, y) && seen[this.idx(x, y)]) { ok = true; break; }
+        if (ok) continue;
+        let best = null, bd = 1e9;
+        for (const i of q) {
+          const d = Math.hypot(i % W - r.x - 1, ((i / W) | 0) - r.y - 1);
+          if (d < bd) { bd = d; best = i; }
+        }
+        if (best == null) continue;
+        // Carve from the edge of the footprint so the road does not run under the building.
+        const bx = best % W, by = (best / W) | 0;
+        const ex = Math.max(r.x - 1, Math.min(r.x + 3, bx)), ey = Math.max(r.y - 1, Math.min(r.y + 3, by));
+        this.carveLine(ex, ey, bx, by, 1, T.GRASS);
+        for (let y = r.y; y < r.y + 3; y++) for (let x = r.x; x < r.x + 3; x++) if (!this.isGround(x, y)) this.tiles[this.idx(x, y)] = T.GRASS;
+        fixed = true;
+      }
+      if (!fixed) return;
+    }
+  }
+
+  // Label each connected body of water so ships and shipyards know which sea they are on.
+  findWaterBodies() {
+    const n = this.w * this.h;
+    this.waterId = new Int32Array(n).fill(-1);
+    this.waterSize = [];
+    for (let i = 0; i < n; i++) {
+      if (!this.isSailable(i % this.w, (i / this.w) | 0) || this.waterId[i] >= 0) continue;
+      const id = this.waterSize.length;
+      const q = [i];
+      this.waterId[i] = id;
+      for (let h = 0; h < q.length; h++) {
+        const c = q[h], x = c % this.w, y = (c / this.w) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (!this.inBounds(nx, ny)) continue;
+          const j = this.idx(nx, ny);
+          if (!this.isSailable(nx, ny) || this.waterId[j] >= 0) continue;
+          this.waterId[j] = id;
+          q.push(j);
+        }
+      }
+      this.waterSize.push(q.length);
+    }
+  }
+
+  isSailable(x, y) { const t = this.tile(x, y); return t === T.WATER || t === T.FORD; }
+  // Open water: big enough to be worth a shipyard.
+  isSea(x, y) {
+    if (!this.isSailable(x, y)) return false;
+    return this.waterSize[this.waterId[this.idx(x, y)]] >= 40;
   }
 
   idx(x, y) { return y * this.w + x; }
@@ -52,7 +132,7 @@ class GameMap {
   tile(x, y) { return this.inBounds(x, y) ? this.tiles[this.idx(x, y)] : T.ROCK; }
   isGround(x, y) {
     const t = this.tile(x, y);
-    return t === T.GRASS || t === T.SNOW || t === T.STUMP;
+    return t === T.GRASS || t === T.SNOW || t === T.STUMP || t === T.FORD;
   }
   isWalkable(x, y) {
     return this.isGround(x, y) && this.bldg[this.idx(x, y)] === 0;
@@ -99,6 +179,19 @@ class GameMap {
 
     const P = { x: 9, y: 9 };
     const E = { x: W - 10, y: H - 10 };
+
+    if (this.fjords) {
+      // A winding sea along the anti-diagonal, plus an inlet reaching toward each base.
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const d = x + y - (W - 1) + (fbm(x / 6, y / 6, seed + 9) - 0.5) * 7;
+          if (Math.abs(d) < 4.5 && x > 0 && y > 0 && x < W - 1 && y < H - 1) this.tiles[this.idx(x, y)] = T.WATER;
+        }
+      }
+      const sx = P.x + 12, sy = P.y + 5;
+      const k = (W - 1 - sx - sy) / 1.87;
+      this.carveWater(sx, sy, Math.round(sx + k), Math.round(sy + k * 0.87), 2);
+    }
 
     // Only the top half survives the mirror step below, so every road is laid
     // out to meet its own reflection on the middle rows.
@@ -150,6 +243,17 @@ class GameMap {
     const P = { x: 9, y: 9 };
     const hw = W / 2, hh = H / 2;
     const jx = Math.floor(rng() * 5) - 2, jy = Math.floor(rng() * 5) - 2;
+    if (this.fjords) {
+      // Seas along the quarter seams: mirrored, they form a cross of water between the bases.
+      for (let y = 1; y < hh; y++) {
+        for (let x = 1; x < hw; x++) {
+          const wob = (fbm(x / 5, y / 5, seed + 9) - 0.5) * 4;
+          if (x >= hw - 4 + wob || y >= hh - 4 + wob) this.tiles[this.idx(x, y)] = T.WATER;
+        }
+      }
+      // An inlet from the sea toward the base, for a shipyard close to home.
+      this.carveWater(hw - 2, P.y + 6, P.x + 11, P.y + 6, 2);
+    }
     this.carveLine(P.x, P.y, hw - 1, P.y + 2 + jy, 1, T.GRASS);
     this.carveLine(P.x, P.y, P.x + 2 + jx, hh - 1, 1, T.SNOW);
     this.carveLine(P.x, P.y, hw - 1, hh - 1, 1, T.GRASS);
@@ -194,6 +298,21 @@ class GameMap {
     }
   }
 
+  carveWater(x0, y0, x1, y1, rad) {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round(x0 + (x1 - x0) * i / steps);
+      const y = Math.round(y0 + (y1 - y0) * i / steps);
+      for (let dy = -rad; dy <= rad; dy++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx <= 0 || yy <= 0 || xx >= this.w - 1 || yy >= this.h - 1) continue;
+          if (dx * dx + dy * dy <= rad * rad + 1) this.tiles[this.idx(xx, yy)] = T.WATER;
+        }
+      }
+    }
+  }
+
   clearArea(x0, y0, w, h) {
     for (let y = y0; y < y0 + h; y++) {
       for (let x = x0; x < x0 + w; x++) {
@@ -224,7 +343,9 @@ class GameMap {
           const xx = x + dx, yy = y + dy;
           if (xx <= 0 || yy <= 0 || xx >= this.w - 1 || yy >= this.h - 1) continue;
           const k = this.tiles[this.idx(xx, yy)];
-          if (k === T.WATER || k === T.ROCK || k === T.FOREST) this.tiles[this.idx(xx, yy)] = t;
+          // On fjord maps roads cross the sea as fords, so ships can still pass.
+          if (k === T.WATER && this.fjords) this.tiles[this.idx(xx, yy)] = T.FORD;
+          else if (k === T.WATER || k === T.ROCK || k === T.FOREST) this.tiles[this.idx(xx, yy)] = t;
         }
       }
     }

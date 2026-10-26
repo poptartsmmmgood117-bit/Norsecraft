@@ -126,7 +126,7 @@ function speak(kind) {
     tone(kind === 'ack' ? 420 : 180, kind === 'ack' ? 0.35 : 0.3, 'sawtooth', 0.05, kind === 'ack' ? 260 : -60);
     return true;
   }
-  if (f0 === 0) {
+  if (!f0) {
     // The ballista creaks instead of talking.
     noise(0.18, 0.1, 700);
     tone(90, 0.15, 'square', 0.03, 40, 0.12);
@@ -283,7 +283,7 @@ function setMusic(on) {
 
 // ---------- screens ----------
 
-const Setup = { faction: 'vikings', difficulty: 'normal', speed: 1, size: 'medium', foes: 1, ffa: false };
+const Setup = { faction: 'vikings', difficulty: 'normal', speed: 1, size: 'medium', foes: 1, ffa: false, fjords: false };
 
 function initTitle() {
   document.querySelectorAll('[data-faction]').forEach(b => b.addEventListener('click', () => {
@@ -301,6 +301,7 @@ function initTitle() {
   pick('data-size', v => { Setup.size = v; });
   pick('data-foes', v => { Setup.foes = +v; $('team-opts').hidden = Setup.foes < 2; });
   pick('data-ffa', v => { Setup.ffa = v === '1'; });
+  pick('data-terrain', v => { Setup.fjords = v === 'fjords'; });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
     Setup.speed = +b.dataset.speed;
     document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
@@ -411,7 +412,7 @@ function frameHome() {
 }
 
 function startGame() {
-  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed, size: MAP_SIZES[Setup.size], foes: Setup.foes, ffa: Setup.ffa });
+  newGame({ faction: Setup.faction, difficulty: Setup.difficulty, speed: Setup.speed, size: MAP_SIZES[Setup.size], foes: Setup.foes, ffa: Setup.ffa, fjords: Setup.fjords });
   enterGame();
   frameHome();
   const p = humanPlayer();

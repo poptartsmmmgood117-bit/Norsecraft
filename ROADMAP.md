@@ -12,10 +12,10 @@
 - Campaign: five Viking chapters with briefings and unlocks
 - Heroes: Sigrún and Hrungnir, with levels, auras and abilities
 - Skirmish options: map size, 1–3 foes, allied or free-for-all
+- Ships and fjord maps: shipyards, transports, warships, fords
 
 ## Next, in order
-1. **Ships and fjord maps**: shipyard, longships, carrying troops across water.
-2. **Polish**: Patrol command, second upgrade level, army-size graph on the victory screen.
+1. **Polish**: Patrol command, second upgrade level, army-size graph on the victory screen.
 
 ## Later
 - **Jötnar campaign**: the same war told from the giants' side.

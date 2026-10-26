@@ -62,6 +62,15 @@ New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk y
 | Aura | Shield Wall: allies nearby +1 armor | Giant's Wrath: allies nearby +1 attack |
 | Ability (`R`, level 2+) | War Cry: allies nearby hit 30% faster and +2 damage for 10s | Earthshaker: 30 damage and a 1.5s stun around him |
 
+- **Ships and fjords:** pick **Fjords** terrain for a map split by a sea, crossed by shallow fords. Build a shipyard on the shore (it needs a lumber workshop):
+
+| | Vikings | Jötnar | |
+|---|---|---|---|
+| Shipyard | Naust | Ice Harbor | Builds ships; also takes lumber |
+| Transport | Knarr | Ice Raft | Carries 6 land units, unarmed |
+| Warship | Drakkar | Naglfar | Bombards ships and the shore from range |
+
+  Right-click your transport with troops selected to board it. With the transport selected, right-click a shore to sail there and land them (`U` unloads where it is).
 - **Upgrades:** Runed Blades, Iron Mail and Barbed Arrows.
 - **Magic:** spellcasters use mana, which refills over time. Every caster knows a heal, which it also casts by itself on wounded allies nearby. Two more spells are learned at the temple:
 
@@ -74,7 +83,7 @@ New to RTS games? Press **Tutorial** on the title screen. Ten short steps walk y
   Summoned units fade after 45 seconds and cost no food.
 - **Save and load** from the pause menu. The game also autosaves every minute and when you leave the page, so **Continue** on the title screen picks up where you left off. Saves stay in your browser.
 - **Music and voices:** a generated Norse score (drone, frame drum and lyre) that picks up drums during battle, plus short voice replies from your units. Both are made in code; toggle music with ♫.
-- **Skirmish options:** small (48×48), medium (64×64) or large (96×96) maps, and 1–3 computer foes. With two or more foes, choose **Allied** (they all fight you) or **Free-for-all** (everyone fights everyone). Games with 3–4 sides use a mirrored map with a base in each corner.
+- **Skirmish options:** small (48×48), medium (64×64) or large (96×96) maps, **Land** or **Fjords** terrain, and 1–3 computer foes. With two or more foes, choose **Allied** (they all fight you) or **Free-for-all** (everyone fights everyone). Games with 3–4 sides use a mirrored map with a base in each corner.
 - **Computer opponent** with Beginner, Easy, Normal and Hard settings. It runs an economy, builds a base, defends itself and attacks in growing waves.
 - Fog of war, minimap, control groups, attack-move, rally points, hold position, and procedurally generated mirrored maps.
 

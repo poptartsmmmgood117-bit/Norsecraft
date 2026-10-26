@@ -43,7 +43,7 @@ function entityAt(wx, wy) {
   for (const e of G.ents) {
     if (e.dead || e.hidden || e.kind !== 'unit' || !isVisibleEnt(e)) continue;
     const d = Math.hypot(e.x - wx, e.y - 2 - wy);
-    const r = (e.type === 'rider' || e.type === 'siege' ? 16 : 12) + (UI.touch ? 8 : 0);
+    const r = (isNaval(e) ? 20 : e.type === 'rider' || e.type === 'siege' ? 16 : 12) + (UI.touch ? 8 : 0);
     if (d < r && d < bd) { bd = d; best = e; }
   }
   if (best) return best;
@@ -89,6 +89,22 @@ function rightClickAt(w) {
     const bs = own.filter(e => e.kind === 'bldg' && BUILDINGS[e.type].trains);
     for (const b of bs) b.rally = { x: tx, y: ty };
     if (bs.length) marker(w.x, w.y, '#5cf05c');
+    return;
+  }
+  // Ships: board a transport, or sail a loaded transport to the clicked shore.
+  const landUnits = units.filter(u => !isNaval(u));
+  if (target && target.type === 'transport' && target.owner === G.human && landUnits.length) {
+    const r = cmdBoard(landUnits, target);
+    if (r) { msg(r); sfx('error'); } else { marker(target.x, target.y, '#5cf05c'); sfx('ack'); }
+    return;
+  }
+  const loaded = units.filter(u => u.type === 'transport' && u.cargo && u.cargo.length);
+  if (loaded.length && G.map.isWalkable(tx, ty) && !(target && isEnemy(units[0], target))) {
+    cmdUnload(loaded, { x: tx, y: ty });
+    const rest = units.filter(u => !loaded.includes(u));
+    if (rest.length) cmdMove(rest, tx, ty, false);
+    marker(w.x, w.y, '#5cf05c');
+    sfx('ack');
     return;
   }
   const workers = units.filter(u => u.type === 'worker');
@@ -247,9 +263,17 @@ function getCommands() {
     }
     cmds.push({ key: 'M', glyph: '➜', name: 'Move', desc: 'Move to a location.', act: () => { UI.targeting = 'move'; } });
     cmds.push({ key: 'S', glyph: '✋', name: 'Stop', desc: 'Stop all actions.', act: () => cmdStop(units) });
-    cmds.push({ key: 'A', glyph: '⚔', name: 'Attack', desc: 'Attack a target, or attack-move to a location fighting anything on the way.', act: () => { UI.targeting = 'attack'; } });
-    if (units.some(u => u.type !== 'worker')) {
+    const armed = units.some(u => UNITS[u.type].atk);
+    if (armed) cmds.push({ key: 'A', glyph: '⚔', name: 'Attack', desc: 'Attack a target, or attack-move to a location fighting anything on the way.', act: () => { UI.targeting = 'attack'; } });
+    if (units.some(u => u.type !== 'worker' && UNITS[u.type].atk)) {
       cmds.push({ key: 'H', glyph: '⛨', name: 'Hold Position', desc: 'Stand ground and only attack enemies in range.', act: () => cmdHold(units) });
+    }
+    const boats = units.filter(u => u.type === 'transport' && u.cargo && u.cargo.length);
+    if (boats.length) {
+      cmds.push({
+        key: 'U', glyph: '⚓', name: 'Unload', desc: 'Put everyone ashore here (the ship must be next to land). To land somewhere else, right-click the shore.',
+        act: () => cmdUnload(boats, null),
+      });
     }
     const hero = units.find(u => u.type === 'hero');
     if (hero) {
@@ -340,6 +364,7 @@ function commandSig() {
   for (const t of BUILD_ORDER) parts.push(hasBuilt(G.human, t) ? 1 : 0);
   parts.push(p.up.weapons, p.up.armor, p.up.arrows, p.up.summon, p.up.storm);
   for (const e of UI.selected) if (e.mana != null) parts.push(Math.floor(e.mana / 10));
+  for (const e of UI.selected) if (e.cargo) parts.push('c' + e.cargo.length);
   for (const e of UI.selected) if (e.type === 'hero') parts.push(e.level, e.abilT > 0 ? Math.ceil(e.abilT / 5) : 0);
   parts.push(Math.floor(p.gold / 10), Math.floor(p.wood / 10));
   return parts.join('|');
@@ -360,11 +385,13 @@ function buildCommandCard() {
   const cmds = getCommands();
   UI.cmds = cmds;
   const p = humanPlayer();
-  const slots = new Array(9).fill(null);
+  // Three columns; a fourth row appears when there are more than nine commands.
+  const n = Math.max(9, Math.ceil(cmds.length / 3) * 3);
+  const slots = new Array(n).fill(null);
   let i = 0;
   for (const c of cmds) {
-    if (c.slot != null) slots[c.slot] = c;
-    else { while (slots[i]) i++; if (i < 9) slots[i++] = c; }
+    if (c.slot != null) slots[n - 1] = c;
+    else { while (slots[i]) i++; if (i < n) slots[i++] = c; }
   }
   for (const c of slots) {
     const b = document.createElement('button');
@@ -452,8 +479,10 @@ function buildInfoPanel() {
       st.className = 'stats';
       const extras = [];
       if (e.kind === 'unit') {
-        st.innerHTML = `Attack ${atkOf(e)} · Armor ${armorOf(e)}<br>Range ${d.range} · Sight ${d.sight} · Speed ${d.speed}`;
+        st.innerHTML = (d.atk ? `Attack ${atkOf(e)} · Armor ${armorOf(e)}<br>Range ${d.range} · ` : `Unarmed · Armor ${armorOf(e)}<br>`) + `Sight ${d.sight} · Speed ${d.speed}`;
         if (e.carry) st.innerHTML += `<br>Carrying ${e.carry.amt} ${e.carry.res === 'gold' ? 'gold' : 'lumber'}`;
+        if (e.cargo) st.innerHTML += `<br>Aboard: ${e.cargo.length} / ${d.capacity}` +
+          (e.cargo.length ? ' · ' + e.cargo.map(id => G.byId.get(id)).filter(Boolean).map(c => nameOf(c)).join(', ') : '');
         if (e.life != null) st.innerHTML += '<br><span class="life"></span>';
         if (e.type === 'hero') {
           const H = HERO[G.players[e.owner].faction];
@@ -803,7 +832,8 @@ function touchTap(sx, sy) {
   const now = performance.now();
   const ownTarget = e && e.owner === G.human;
   // With workers selected, tapping a site or damaged building of ours means "help with it".
-  const workTarget = ownTarget && e.kind === 'bldg' && workers.length && (!e.built || e.hp < e.maxHp);
+  const workTarget = (ownTarget && e.kind === 'bldg' && workers.length && (!e.built || e.hp < e.maxHp)) ||
+    (ownTarget && e.type === 'transport' && units.some(u => !isNaval(u)));
   if (ownTarget && !workTarget) {
     if (Touch.lastTap.id === e.id && now - Touch.lastTap.t < 350) selectSameOnScreen(e);
     else setSelection([e]);

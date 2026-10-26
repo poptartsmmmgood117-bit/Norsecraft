@@ -31,7 +31,7 @@ function newGame(opts) {
   const seed = opts.seed || (Math.random() * 1e9) | 0;
   setMapSize(opts.size || MAP_SIZES.medium);
   const nPlayers = 1 + Math.max(1, Math.min(3, opts.foes || 1));
-  G.map = new GameMap(seed, nPlayers);
+  G.map = new GameMap(seed, nPlayers, !!opts.fjords);
   G.ents = [];
   G.byId = new Map();
   G.nextId = 1;
@@ -110,6 +110,7 @@ function spawnUnit(type, owner, tx, ty) {
   };
   if (d.mana) u.mana = 50;
   if (d.summon) u.life = SUMMON_LIFE;
+  if (d.capacity) u.cargo = [];
   G.ents.push(u);
   G.byId.set(u.id, u);
   return u;
@@ -275,7 +276,7 @@ function msg(text, pid = G.human) {
 function unitGoal(u, goal) {
   u.goal = goal;
   const t = tileOf(u);
-  const r = findPath(G.map, t.x, t.y, goal);
+  const r = findPath(G.map, t.x, t.y, goal, undefined, isNaval(u));
   u.path = r.path;
   u.pathI = 0;
   u.reached = r.reached;
@@ -286,7 +287,7 @@ function unitGoal(u, goal) {
 function stepMove(u, dt) {
   if (!u.path || u.pathI >= u.path.length) return true;
   const n = u.path[u.pathI];
-  if (!G.map.isWalkable(n.x, n.y)) {
+  if (!canStand(u, n.x, n.y)) {
     unitGoal(u, u.goal);
     if (!u.path.length) return true;
     return false;
@@ -356,6 +357,8 @@ function updateUnit(u, dt) {
     case 'wood': doWood(u, dt, o); break;
     case 'build': doBuild(u, dt, o); break;
     case 'cast': doCast(u, dt, o); break;
+    case 'board': doBoard(u, dt, o); break;
+    case 'unload': doUnload(u, dt, o); break;
     case 'repair': doRepair(u, dt, o); break;
     default: u.order = null;
   }
@@ -365,8 +368,8 @@ function idleUnit(u, dt) {
   u.scanT -= dt;
   if (u.scanT > 0) return;
   u.scanT = 0.4 + Math.random() * 0.2;
-  if (u.type === 'worker') return;
   const d = UNITS[u.type];
+  if (u.type === 'worker' || !d.atk) return;
   const radius = u.hold ? d.range : d.sight;
   const t = findEnemyNear(u, radius);
   if (t) u.order = { type: 'attack', target: t.id, auto: true, hold: u.hold, home: { x: u.x, y: u.y }, repath: 0 };
@@ -377,6 +380,7 @@ function findEnemyNear(u, radius) {
   let best = null, bs = 1e9;
   for (const e of G.ents) {
     if (e.dead || e.hidden || !isEnemy(u, e)) continue;
+    if (u.noReach && u.noReach[e.id] > G.time) continue;
     const d = rectDist(ut.x, ut.y, entRect(e));
     if (d > radius) continue;
     let s = d;
@@ -431,7 +435,12 @@ function doAttack(u, dt, o) {
     const r = entRect(t);
     const res = unitGoal(u, { x: r.x, y: r.y, w: r.w, h: r.h, range: d.range, minRange: minR });
     o.repath = 0.7 + Math.random() * 0.3;
-    if (!res.path.length && !res.reached) return endAttack(u, o);
+    if (!res.path.length && !res.reached) {
+      // Remember targets we cannot reach (a ship out at sea, a unit across the water) for a while.
+      u.noReach = u.noReach || {};
+      u.noReach[t.id] = G.time + 6;
+      return endAttack(u, o);
+    }
   }
   stepMove(u, dt);
 }
@@ -501,7 +510,12 @@ function kill(t, src) {
     msg(`${unitName('hero', G.players[t.owner].faction)} has fallen! Call them back at the ${bldgName('hall', G.players[t.owner].faction)}.`, t.owner);
   }
   if (t.kind === 'unit') {
-    if (t.life != null) {
+    if (t.cargo) for (const id of t.cargo) { const c = G.byId.get(id); if (alive(c)) kill(c, src); }
+    if (UNITS[t.type].naval) {
+      G.effects.push({ type: 'boom', x: t.x, y: t.y, t: 0.8, r: 22 });
+      G.effects.push({ type: 'wreck', x: t.x, y: t.y, t: 6 });
+      if (!t.hidden) sfx('crash');
+    } else if (t.life != null) {
       G.effects.push({ type: 'poof', x: t.x, y: t.y, t: 0.8 });
     } else {
       G.effects.push({ type: 'corpse', x: t.x, y: t.y, t: 12, faction: G.players[t.owner].faction, color: G.players[t.owner].color });
@@ -838,10 +852,11 @@ function updateBuilding(b, dt) {
 function finishTraining(b, type) {
   const p = G.players[b.owner];
   const aim = b.rally ? b.rally : { x: b.tx + Math.floor(b.w / 2), y: b.ty + b.h };
+  const naval = UNITS[type].naval;
   let sp = null, bd = 1e9;
   for (let y = b.ty - 1; y <= b.ty + b.h; y++) {
     for (let x = b.tx - 1; x <= b.tx + b.w; x++) {
-      if (!G.map.isWalkable(x, y)) continue;
+      if (naval ? !G.map.isSea(x, y) : !G.map.isWalkable(x, y)) continue;
       const d = Math.hypot(x - aim.x, y - aim.y);
       if (d < bd) { bd = d; sp = { x, y }; }
     }
@@ -879,11 +894,13 @@ function updateFood() {
 
 // ---------- commands ----------
 
-function formationTiles(n, tx, ty) {
+function formationTiles(n, tx, ty, naval) {
   const taken = new Set();
   const out = [];
   for (let i = 0; i < n; i++) {
-    const t = nearestWalkable(G.map, tx, ty, 14, (x, y) => taken.has(x + y * MAP_W));
+    const t = naval
+      ? nearestTile(tx, ty, 16, (x, y) => G.map.isSailable(x, y) && !taken.has(x + y * MAP_W))
+      : nearestWalkable(G.map, tx, ty, 14, (x, y) => taken.has(x + y * MAP_W));
     if (!t) { out.push({ x: tx, y: ty }); continue; }
     taken.add(t.x + t.y * MAP_W);
     out.push(t);
@@ -892,8 +909,12 @@ function formationTiles(n, tx, ty) {
 }
 
 function cmdMove(units, tx, ty, attack) {
-  const list = units.filter(u => u.kind === 'unit' && !u.hidden && !u.dead);
-  const tiles = formationTiles(list.length, tx, ty);
+  const all = units.filter(u => u.kind === 'unit' && !u.hidden && !u.dead);
+  // Ships and land units each get their own formation on their own terrain.
+  const ships = all.filter(isNaval);
+  if (ships.length && ships.length < all.length) cmdMove(ships, tx, ty, attack);
+  const list = ships.length < all.length ? all.filter(u => !isNaval(u)) : ships;
+  const tiles = formationTiles(list.length, tx, ty, list.length && isNaval(list[0]));
   // Assign nearest-first so units do not cross paths too much.
   list.sort((a, b) => Math.hypot(a.x - tx * TILE, a.y - ty * TILE) - Math.hypot(b.x - tx * TILE, b.y - ty * TILE));
   list.forEach((u, i) => {
@@ -908,7 +929,7 @@ function cmdMove(units, tx, ty, attack) {
 
 function cmdAttack(units, target) {
   for (const u of units) {
-    if (u.kind !== 'unit' || u.hidden || u.dead || u === target) continue;
+    if (u.kind !== 'unit' || u.hidden || u.dead || u === target || !UNITS[u.type].atk) continue;
     u.hold = false;
     u.chopping = false;
     u.order = { type: 'attack', target: target.id, repath: 0 };
@@ -967,10 +988,11 @@ function canPlace(type, tx, ty, pid, builder) {
   const d = BUILDINGS[type];
   for (let y = ty; y < ty + d.h; y++) {
     for (let x = tx; x < tx + d.w; x++) {
-      if (!G.map.isWalkable(x, y)) return false;
+      if (!G.map.isWalkable(x, y) || G.map.tile(x, y) === T.FORD) return false;
       if (pid === G.human && !G.explored[G.map.idx(x, y)] && !G.revealAll) return false;
     }
   }
+  if (d.coastal && !coastalOk(tx, ty, d)) return false;
   for (const e of G.ents) {
     if (e.kind !== 'unit' || e.dead || e.hidden || e === builder) continue;
     const t = tileOf(e);
@@ -1206,6 +1228,143 @@ function cmdCast(units, spell, target) {
   return null;
 }
 
+// ---------- ships ----------
+
+function isNaval(u) { return !!(UNITS[u.type] && UNITS[u.type].naval); }
+function canStand(u, x, y) { return isNaval(u) ? G.map.isSailable(x, y) : G.map.isWalkable(x, y); }
+
+// A shipyard needs open sea touching its footprint.
+function coastalOk(tx, ty, d) {
+  for (let y = ty - 1; y <= ty + d.h; y++) {
+    for (let x = tx - 1; x <= tx + d.w; x++) {
+      if (G.map.isSea(x, y)) return true;
+    }
+  }
+  return false;
+}
+
+function hasLandNeighbor(x, y) {
+  for (let k = 0; k < 8; k++) if (G.map.isWalkable(x + DIRS[k][0], y + DIRS[k][1])) return true;
+  return false;
+}
+
+// A water tile next to land, on the ship's own sea, as close to (x, y) as possible.
+function dockNear(ship, x, y, maxR = 14) {
+  const t = tileOf(ship);
+  const body = G.map.waterId[G.map.idx(t.x, t.y)];
+  return nearestTile(x, y, maxR, (xx, yy) => G.map.isSailable(xx, yy) &&
+    G.map.waterId[G.map.idx(xx, yy)] === body && hasLandNeighbor(xx, yy));
+}
+
+function cargoRoom(s) { return UNITS[s.type].capacity - s.cargo.length; }
+
+function cmdBoard(units, ship) {
+  const land = units.filter(u => u.kind === 'unit' && !u.hidden && !u.dead && !isNaval(u)).slice(0, cargoRoom(ship));
+  if (!land.length) return cargoRoom(ship) ? null : 'The ship is full.';
+  for (const u of land) {
+    u.hold = false;
+    u.chopping = false;
+    u.path = null;
+    u.order = { type: 'board', ship: ship.id, repath: 0 };
+  }
+  // If the ship is idle away from the shore, bring it in toward the boarding party.
+  const st = tileOf(ship);
+  if (!ship.order && !hasLandNeighbor(st.x, st.y)) {
+    const cx = land.reduce((a, u) => a + u.x, 0) / land.length / TILE;
+    const cy = land.reduce((a, u) => a + u.y, 0) / land.length / TILE;
+    const dock = dockNear(ship, Math.floor(cx), Math.floor(cy), 20);
+    if (dock) {
+      const goal = { x: dock.x, y: dock.y, w: 1, h: 1, range: 0 };
+      ship.order = { type: 'move', goal };
+      unitGoal(ship, goal);
+    }
+  }
+  return null;
+}
+
+function doBoard(u, dt, o) {
+  const s = G.byId.get(o.ship);
+  if (!alive(s) || cargoRoom(s) <= 0) { u.order = null; return; }
+  // Troops can wade out a couple of tiles to reach the boat.
+  if (tileDist(u, s) <= 2) {
+    u.hidden = true;
+    u.inside = { ship: s.id };
+    u.path = null;
+    u.order = null;
+    s.cargo.push(u.id);
+    if (u.owner === G.human) sfx('click');
+    return;
+  }
+  o.repath = (o.repath || 0) - dt;
+  if (!u.path || u.pathI >= u.path.length || o.repath <= 0) {
+    const r = unitGoal(u, { ...entRect(s), range: 2 });
+    o.repath = 1;
+    if (!r.path.length && !r.reached) {
+      o.fails = (o.fails || 0) + 1;
+      // Can't reach it: call the ship over to this unit's shore instead.
+      const ut = tileOf(u);
+      if (!s.order || s.order.type === 'move') {
+        const dock = dockNear(s, ut.x, ut.y, 12);
+        if (dock) { const goal = { x: dock.x, y: dock.y, w: 1, h: 1, range: 0 }; s.order = { type: 'move', goal }; unitGoal(s, goal); }
+      }
+      if (o.fails > 10) { u.order = null; msg('The ship cannot reach those troops.', u.owner); }
+      return;
+    }
+  }
+  stepMove(u, dt);
+}
+
+// Sail to the coast nearest the target (if given) and put everyone ashore.
+function cmdUnload(ships, target) {
+  for (const s of ships) {
+    if (!s.cargo || !s.cargo.length || s.dead) continue;
+    if (!target) {
+      const t = tileOf(s);
+      if (hasLandNeighbor(t.x, t.y)) unloadHere(s, null);
+      else msg('Sail next to the shore to unload.', s.owner);
+      continue;
+    }
+    const dock = dockNear(s, target.x, target.y, 18);
+    if (!dock) { msg('No shore the ship can reach there.', s.owner); continue; }
+    const goal = { x: dock.x, y: dock.y, w: 1, h: 1, range: 0 };
+    s.order = { type: 'unload', goal, target: { x: target.x, y: target.y } };
+    unitGoal(s, goal);
+  }
+}
+
+function doUnload(s, dt, o) {
+  if (!s.path) unitGoal(s, o.goal);
+  if (!stepMove(s, dt)) return;
+  const t = tileOf(s);
+  if (hasLandNeighbor(t.x, t.y)) unloadHere(s, o.target);
+  else msg('Could not reach the shore.', s.owner);
+  s.order = null;
+}
+
+function unloadHere(s, target) {
+  const t = tileOf(s);
+  const taken = new Set();
+  const out = [];
+  for (const id of s.cargo) {
+    const u = G.byId.get(id);
+    if (!alive(u)) continue;
+    const sp = nearestWalkable(G.map, t.x, t.y, 4, (x, y) => taken.has(x + y * MAP_W));
+    if (!sp) break;
+    taken.add(sp.x + sp.y * MAP_W);
+    u.x = sp.x * TILE + TILE / 2;
+    u.y = sp.y * TILE + TILE / 2;
+    u.hidden = false;
+    u.inside = null;
+    u.path = null;
+    u.order = null;
+    out.push(u);
+  }
+  s.cargo = s.cargo.filter(id => !out.some(u => u.id === id) && alive(G.byId.get(id)));
+  if (out.length && target && G.map.isWalkable(target.x, target.y)) cmdMove(out, target.x, target.y, false);
+  if (out.length && s.owner === G.human) sfx('ack');
+  return out;
+}
+
 // ---------- projectiles, effects ----------
 
 function updateProjectiles(dt) {
@@ -1271,7 +1430,7 @@ function separateUnits() {
 
 function tryShift(u, dx, dy) {
   const nx = u.x + dx, ny = u.y + dy;
-  if (G.map.isWalkable(Math.floor(nx / TILE), Math.floor(ny / TILE))) { u.x = nx; u.y = ny; }
+  if (canStand(u, Math.floor(nx / TILE), Math.floor(ny / TILE))) { u.x = nx; u.y = ny; }
 }
 
 function updateVisibility() {

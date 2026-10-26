@@ -71,7 +71,8 @@ class AI {
     const units = mine.filter(e => e.kind === 'unit');
     const bldgs = mine.filter(e => e.kind === 'bldg');
     const workers = units.filter(u => u.type === 'worker');
-    const army = units.filter(u => u.type !== 'worker');
+    const army = units.filter(u => u.type !== 'worker' && !isNaval(u));
+    const fleet = units.filter(u => isNaval(u));
     const count = t => bldgs.filter(b => b.type === t).length;
     const hall = this.mainHall();
 
@@ -151,7 +152,8 @@ class AI {
       if (canAfford(p, BUILDINGS[need])) {
         const w = this.pickBuilder(workers, hall);
         if (w) {
-          const spot = this.findSpot(need, hall.tx + 1, hall.ty + 1, w);
+          const c = need === 'shipyard' ? this.coastSpot() : { x: hall.tx + 1, y: hall.ty + 1 };
+          const spot = c && this.findSpot(need, c.x, c.y, w, need === 'shipyard' ? 1 : 3);
           if (spot) cmdBuild(w, need, spot.x, spot.y);
         }
       } else saving = need === 'farm' || count('barracks') === 0;
@@ -187,6 +189,7 @@ class AI {
     }
 
     this.castSpells(army);
+    this.runFleet(p, bldgs, fleet, saving);
 
     // Use the hero's ability in fights.
     const hero = heroOf(this.pid);
@@ -240,6 +243,50 @@ class AI {
     }
   }
 
+  // A coastal spot near home where a shipyard fits, or null. Checked once a minute.
+  coastSpot() {
+    if (this.coastT && G.time < this.coastT) return this.coast;
+    this.coastT = G.time + 60;
+    this.coast = null;
+    const hall = this.mainHall();
+    if (!hall) return null;
+    const cx = hall.tx + 1, cy = hall.ty + 1;
+    let best = null, bd = 1e9;
+    for (let y = cy - 16; y <= cy + 16; y++) {
+      for (let x = cx - 16; x <= cx + 16; x++) {
+        if (!G.map.isSea(x, y)) continue;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < bd) { bd = d; best = { x, y }; }
+      }
+    }
+    if (best) {
+      // Step back from the water onto land so the yard sits on the shore.
+      const land = nearestWalkable(G.map, best.x, best.y, 3);
+      this.coast = land || null;
+    }
+    return this.coast;
+  }
+
+  runFleet(p, bldgs, fleet, saving) {
+    const yard = bldgs.find(b => b.type === 'shipyard' && b.built);
+    const warships = fleet.filter(u => u.type === 'warship');
+    if (yard && !saving && !yard.queue.length && warships.length < 3 && canAfford(p, UNITS.warship) && p.food < p.foodCap) {
+      cmdTrain(yard, 'warship');
+    }
+    // Idle warships sail for the nearest enemy shore they can reach.
+    const idle = warships.filter(u => !u.order && !u.hidden);
+    if (idle.length < 2 && !(idle.length && G.time > this.diff.firstAttack)) return;
+    let best = null, bd = 1e9;
+    for (const e of G.ents) {
+      if (e.dead || e.kind !== 'bldg' || !hostile(this.pid, e.owner)) continue;
+      const d = Math.hypot(e.x - idle[0].x, e.y - idle[0].y);
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) return;
+    const dock = dockNear(idle[0], Math.floor(best.x / TILE), Math.floor(best.y / TILE), 10);
+    if (dock) cmdMove(idle, dock.x, dock.y, true);
+  }
+
   findThreat(hall) {
     let best = null, bd = TILE * 13;
     for (const e of G.ents) {
@@ -270,6 +317,8 @@ class AI {
     if (p.foodCap - p.food <= 2 && p.foodCap < MAX_FOOD && !farmBuilding && count('barracks') > 0) return 'farm';
     if (p.foodCap - p.food <= 1 && p.foodCap < MAX_FOOD && !farmBuilding) return 'farm';
     if (p.gold > 1500 && p.wood > 150 && count('barracks') > 0 && count('barracks') < 3) return 'barracks';
+    // A shipyard once the basics stand, if there is open sea near home.
+    if (!count('shipyard') && count('barracks') && count('mill') && count('farm') >= 2 && G.time > 180 && this.coastSpot()) return 'shipyard';
     for (const [t, n] of AI_PLAN) {
       if (count(t) < n) {
         if (t === 'farm' && p.foodCap - p.food > 6) continue;
@@ -319,10 +368,11 @@ class AI {
       cands.sort(() => Math.random() - 0.5);
       for (const c of cands) {
         if (!canPlace(type, c.x, c.y, this.pid, builder)) continue;
-        // Keep a free ring around the building so paths stay open.
+        // Keep a free ring around the building so paths stay open (shipyards may touch water).
         let ok = true;
         for (let y = c.y - 1; y <= c.y + d.h && ok; y++) {
           for (let x = c.x - 1; x <= c.x + d.w; x++) {
+            if (d.coastal && G.map.isSailable(x, y)) continue;
             if (!G.map.isGround(x, y) || G.map.bldg[G.map.idx(x, y)] !== 0) { ok = false; break; }
           }
         }

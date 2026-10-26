@@ -33,6 +33,7 @@ function serializeGame(cam, groups) {
     savedAt: Date.now(),
     seed: G.map.seed,
     mapW: MAP_W,
+    fjords: G.map.fjords,
     tiles: Array.from(G.map.tiles),
     wood: Array.from(G.map.wood),
     explored: Array.from(G.explored),
@@ -57,7 +58,7 @@ function restoreGame(json) {
   const d = JSON.parse(json);
   if (!d || d.v !== 1) throw new Error('Unknown save format');
   setMapSize(d.mapW || MAP_SIZES.medium);
-  G.map = new GameMap(d.seed, d.players.length);
+  G.map = new GameMap(d.seed, d.players.length, !!d.fjords);
   G.map.tiles.set(d.tiles);
   G.map.wood.set(d.wood);
   G.map.bldg.fill(0);

@@ -65,8 +65,10 @@ function ensurePathBuffers() {
   _stampN = 0;
 }
 
-function findPath(map, sx, sy, goal, maxNodes = Math.max(6000, (MAP_W * MAP_H * 0.7) | 0)) {
+// naval: search over open water instead of land.
+function findPath(map, sx, sy, goal, maxNodes = Math.max(6000, (MAP_W * MAP_H * 0.7) | 0), naval = false) {
   const W = map.w;
+  const pass = naval ? (x, y) => map.isSailable(x, y) : (x, y) => map.isWalkable(x, y);
   const range = goal.range || 0;
   const minRange = goal.minRange || 0;
   const isGoal = (x, y) => {
@@ -94,8 +96,8 @@ function findPath(map, sx, sy, goal, maxNodes = Math.max(6000, (MAP_W * MAP_H * 
     for (let k = 0; k < 8; k++) {
       const d = DIRS[k];
       const nx = cx + d[0], ny = cy + d[1];
-      if (!map.isWalkable(nx, ny)) continue;
-      if (k >= 4 && (!map.isWalkable(cx + d[0], cy) || !map.isWalkable(cx, cy + d[1]))) continue;
+      if (!pass(nx, ny)) continue;
+      if (k >= 4 && (!pass(cx + d[0], cy) || !pass(cx, cy + d[1]))) continue;
       const ni = ny * W + nx;
       const ng = cg + d[2];
       // Only a clearly cheaper route counts; equal-cost ties must not reopen nodes.
@@ -141,6 +143,23 @@ function bfsNearest(map, sx, sy, fn, maxDist = 40) {
       _g[ni] = _g[cur] + 1;
       q.push(ni);
     }
+  }
+  return null;
+}
+
+// Nearest tile to (x, y) accepted by ok(x, y), searching outward in rings.
+function nearestTile(x, y, maxR, ok) {
+  if (ok(x, y)) return { x, y };
+  for (let r = 1; r <= maxR; r++) {
+    let best = null, bd = 1e9;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !ok(x + dx, y + dy)) continue;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = { x: x + dx, y: y + dy }; }
+      }
+    }
+    if (best) return best;
   }
   return null;
 }

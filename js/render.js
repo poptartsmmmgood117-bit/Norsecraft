@@ -44,6 +44,20 @@ function drawGround(ctx, x, y) {
   ctx.beginPath();
   ctx.rect(px, py, TILE, TILE);
   ctx.clip();
+  if (t === T.FORD) {
+    // Shallow crossing: pale water over a pebbled bed.
+    ctx.fillStyle = '#4f7f98';
+    ctx.fillRect(px, py, TILE, TILE);
+    for (let k = 0; k < 7; k++) {
+      ctx.fillStyle = rnd(x, y, 140 + k) < 0.5 ? '#7d9aa6' : '#a7b8bd';
+      ctx.beginPath(); ctx.ellipse(px + 3 + rnd(x, y, 150 + k) * 26, py + 3 + rnd(x, y, 160 + k) * 26, 2.5, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(220,235,240,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px + 4, py + 10); ctx.quadraticCurveTo(px + 10, py + 7, px + 16, py + 10); ctx.stroke();
+    ctx.restore();
+    return;
+  }
   if (t === T.WATER) {
     ctx.fillStyle = PAL.water;
     ctx.fillRect(px, py, TILE, TILE);
@@ -58,10 +72,11 @@ function drawGround(ctx, x, y) {
     }
     // Shoreline foam where water meets land.
     ctx.fillStyle = 'rgba(220,235,240,0.55)';
-    if (G.map.tile(x, y - 1) !== T.WATER) ctx.fillRect(px, py, TILE, 3);
-    if (G.map.tile(x, y + 1) !== T.WATER) ctx.fillRect(px, py + TILE - 3, TILE, 3);
-    if (G.map.tile(x - 1, y) !== T.WATER) ctx.fillRect(px, py, 3, TILE);
-    if (G.map.tile(x + 1, y) !== T.WATER) ctx.fillRect(px + TILE - 3, py, 3, TILE);
+    const wet = (xx, yy) => G.map.isSailable(xx, yy);
+    if (!wet(x, y - 1)) ctx.fillRect(px, py, TILE, 3);
+    if (!wet(x, y + 1)) ctx.fillRect(px, py + TILE - 3, TILE, 3);
+    if (!wet(x - 1, y)) ctx.fillRect(px, py, 3, TILE);
+    if (!wet(x + 1, y)) ctx.fillRect(px + TILE - 3, py, 3, TILE);
     ctx.restore();
     return;
   }
@@ -72,7 +87,7 @@ function drawGround(ctx, x, y) {
   // Soft blending toward neighbouring ground types.
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const nt = G.map.tile(x + dx, y + dy);
-    if (nt === T.WATER || nt === T.ROCK && !G.map.inBounds(x + dx, y + dy)) continue;
+    if (nt === T.WATER || nt === T.FORD || nt === T.ROCK && !G.map.inBounds(x + dx, y + dy)) continue;
     const nk = groundKind(x + dx, y + dy);
     if (nk === kind) continue;
     const g = ctx.createLinearGradient(
@@ -188,6 +203,7 @@ const MINI = 3;
 function miniColor(x, y) {
   const t = G.map.tile(x, y);
   if (t === T.WATER) return '#24496a';
+  if (t === T.FORD) return '#4f7f98';
   if (t === T.FOREST) return '#1f3b2a';
   if (t === T.ROCK) return '#6d6f72';
   return groundKind(x, y) === 'snow' ? '#cdd7dc' : '#56683a';
@@ -534,6 +550,8 @@ function drawUnitSprite(ctx, type, faction, color, o) {
     ctx.shadowBlur = o.atk > 0 ? 12 : 6;
     ctx.beginPath(); ctx.arc(6, -15 + lift, 2.6, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
+  } else if (type === 'transport' || type === 'warship') {
+    drawShip(ctx, type, faction, color, o);
   } else if (type === 'hero') {
     if (giant) {
       // Hrungnir: a towering stone-hearted giant with an ice crown and a great club.
@@ -812,6 +830,39 @@ function drawBuildingArt(ctx, type, faction, color, w, h) {
       banner(ctx, W / 2 + 2, ice ? -16 : -18, color);
       break;
     }
+    case 'shipyard': {
+      if (ice) {
+        // Ice Harbor: a frozen arch over a slipway, with stacked ice blocks for a pier.
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(6, H - 8, W - 8, 8);
+        ctx.fillStyle = '#c7e3ee';
+        for (let i = 0; i < 4; i++) ctx.fillRect(4 + i * 22, H - 18, 20, 14);
+        ctx.strokeStyle = '#8fb9cc';
+        for (let i = 0; i < 4; i++) ctx.strokeRect(4 + i * 22, H - 18, 20, 14);
+        ctx.fillStyle = '#9fd2e6';
+        ctx.beginPath(); ctx.moveTo(10, H - 18); ctx.quadraticCurveTo(W / 2, -8, W - 10, H - 18);
+        ctx.lineTo(W - 22, H - 18); ctx.quadraticCurveTo(W / 2, 14, 22, H - 18); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e8f6fb';
+        for (const sx of [18, 40, 62]) { ctx.beginPath(); ctx.moveTo(sx, 20); ctx.lineTo(sx + 4, 6); ctx.lineTo(sx + 8, 20); ctx.fill(); }
+        ctx.fillStyle = '#3d3b4a';
+        ctx.beginPath(); ctx.moveTo(26, H - 30); ctx.quadraticCurveTo(W / 2, H - 20, W - 26, H - 30); ctx.lineTo(W - 30, H - 36); ctx.lineTo(30, H - 36); ctx.closePath(); ctx.fill();
+      } else {
+        // Naust: a long turf-roofed boathouse with a hull inside and a plank slipway.
+        ctx.fillStyle = '#6b4a2b';
+        ctx.fillRect(2, H - 12, W - 4, 10);
+        ctx.strokeStyle = '#4f3520';
+        for (let x = 6; x < W - 4; x += 7) { ctx.beginPath(); ctx.moveTo(x, H - 12); ctx.lineTo(x, H - 2); ctx.stroke(); }
+        const r = house(ctx, 8, 6, W - 16, H - 20, P, { wallFrac: 0.5, doorW: 34 });
+        ctx.fillStyle = '#7a5232';
+        ctx.beginPath(); ctx.moveTo(W / 2 - 15, r.wy + 10); ctx.quadraticCurveTo(W / 2, r.wy + 22, W / 2 + 15, r.wy + 10); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#7a5232'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(W / 2 + 15, r.wy + 10); ctx.quadraticCurveTo(W / 2 + 19, r.wy + 2, W / 2 + 16, r.wy - 2); ctx.stroke();
+        dragonHead(ctx, 14, 6, -1);
+        dragonHead(ctx, W - 14, 6, 1);
+      }
+      banner(ctx, W - 6, H - 12, color);
+      break;
+    }
     case 'temple': {
       if (ice) {
         // Standing stones around a glowing ice altar.
@@ -931,11 +982,95 @@ function drawBuilding(ctx, b) {
   }
 }
 
+// Ships face along their direction of travel; the dragon prow points forward.
+function drawShip(ctx, type, faction, color, o) {
+  const war = type === 'warship';
+  const ice = faction === 'jotnar';
+  const L = war ? 22 : 18;
+  // Ripple on the water.
+  ctx.fillStyle = 'rgba(10,30,50,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 6, L + 4, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // Hull.
+  ctx.fillStyle = ice ? (war ? '#3d3b4a' : '#cfe6ef') : (war ? '#5a3a22' : '#7a5232');
+  ctx.beginPath();
+  ctx.moveTo(-L, -2);
+  ctx.quadraticCurveTo(-L + 4, 8, 0, 8);
+  ctx.quadraticCurveTo(L - 4, 8, L, -2);
+  ctx.lineTo(-L, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = ice ? (war ? '#22202c' : '#8fb9cc') : '#3b2a1c';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-L + 2, 2); ctx.quadraticCurveTo(0, 5, L - 2, 2); ctx.stroke();
+  if (!ice) {
+    // Curling stern and a stem post, with a dragon head on the warship.
+    ctx.strokeStyle = war ? '#5a3a22' : '#7a5232';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-L, -2); ctx.quadraticCurveTo(-L - 4, -8, -L + 1, -11); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L, -2); ctx.quadraticCurveTo(L + 3, -10, L + (war ? 6 : 1), -13); ctx.stroke();
+    if (war) {
+      ctx.fillStyle = '#e8c547';
+      ctx.beginPath(); ctx.moveTo(L + 6, -13); ctx.lineTo(L + 11, -12); ctx.lineTo(L + 6, -10); ctx.fill();
+    }
+  } else if (war) {
+    // Naglfar: a hull studded with nails.
+    ctx.fillStyle = '#c9c2b0';
+    for (let x = -L + 4; x < L - 2; x += 4) { ctx.beginPath(); ctx.moveTo(x, -2); ctx.lineTo(x + 1.5, -6); ctx.lineTo(x + 3, -2); ctx.fill(); }
+  } else {
+    ctx.strokeStyle = '#9fc6d6';
+    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-2, 5); ctx.moveTo(6, -1); ctx.lineTo(9, 4); ctx.stroke();
+  }
+  if (war && !ice) {
+    // Shields along the side.
+    for (let x = -L + 5; x < L - 3; x += 6) roundShield(ctx, (x / 6 | 0) % 2 ? color : '#e9dcc0', x, -1, 2.6);
+  }
+  if (war) {
+    // Oars dipping in time.
+    ctx.strokeStyle = ice ? '#8a8496' : '#6b4a2b';
+    ctx.lineWidth = 1.2;
+    const sw = Math.sin(o.walk * 1.5) * 2;
+    for (let x = -L + 6; x < L - 4; x += 6) { ctx.beginPath(); ctx.moveTo(x, 4); ctx.lineTo(x - 3 + sw, 11); ctx.stroke(); }
+  } else if (!ice) {
+    // Cargo crates in the knarr.
+    ctx.fillStyle = '#a07a4a';
+    ctx.fillRect(-9, -6, 6, 5); ctx.fillRect(5, -6, 5, 5);
+  }
+  // Mast and sail.
+  ctx.strokeStyle = ice && !war ? '#8a6a44' : '#3b2a1c';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, war ? -30 : -26); ctx.stroke();
+  const sw2 = war ? 22 : 18, sh = war ? 18 : 15, top = war ? -28 : -24;
+  if (ice && !war) {
+    ctx.fillStyle = '#d8c7a4';
+    ctx.beginPath(); ctx.moveTo(-sw2 / 2, top); ctx.lineTo(sw2 / 2 - 2, top + 2); ctx.lineTo(sw2 / 2, top + sh); ctx.lineTo(-sw2 / 2 + 2, top + sh - 1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color; ctx.fillRect(-2, top + 3, 4, sh - 5);
+  } else {
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      ctx.fillStyle = ice ? (i % 2 ? color : '#e8e2d0') : (i % 2 ? '#efe6d2' : color);
+      ctx.fillRect(-sw2 / 2 + i * sw2 / n, top, sw2 / n + 0.5, sh);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.strokeRect(-sw2 / 2, top, sw2, sh);
+  }
+}
+
 function drawUnit(ctx, u) {
   const p = G.players[u.owner];
   ctx.save();
   ctx.translate(Math.round(u.x), Math.round(u.y));
   const moving = u.path && u.pathI < u.path.length;
+  if (isNaval(u)) {
+    // Ships bob on the swell and leave a wake while sailing.
+    ctx.translate(0, Math.sin(G.time * 2 + u.id) * 1.2);
+    if (moving) {
+      ctx.strokeStyle = 'rgba(230,240,245,0.55)';
+      ctx.lineWidth = 1.5;
+      const back = -u.facing * 20;
+      ctx.beginPath(); ctx.moveTo(back, 4); ctx.lineTo(back - u.facing * 14, -1); ctx.moveTo(back, 6); ctx.lineTo(back - u.facing * 14, 11); ctx.stroke();
+    }
+  }
   if (u.life != null && u.life < 6) ctx.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(G.time * 8));
   drawUnitSprite(ctx, u.type, p.faction, p.color, {
     dir: u.facing, walk: moving ? u.anim : 0, atk: u.atkAnim > 0 ? u.atkAnim : 0,
@@ -977,6 +1112,7 @@ function drawSelection(ctx, e, color) {
   if (e.kind === 'bldg') {
     ctx.strokeRect(e.tx * TILE + 1, e.ty * TILE + 1, e.w * TILE - 2, e.h * TILE - 2);
   } else {
+    if (isNaval(e)) { ctx.beginPath(); ctx.ellipse(e.x, e.y + 6, 26, 9, 0, 0, Math.PI * 2); ctx.stroke(); return; }
     const big = e.type === 'rider' || e.type === 'siege' || e.type === 'hero';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + 9, big ? 14 : 10, big ? 6 : 4.5, 0, 0, Math.PI * 2); ctx.stroke();
   }
@@ -1023,7 +1159,16 @@ function drawProjectile(ctx, pr) {
 
 function drawEffect(ctx, fx, layer) {
   if (layer === 0) {
-    if (fx.type === 'corpse') {
+    if (fx.type === 'wreck') {
+      ctx.globalAlpha = Math.min(1, fx.t / 2);
+      ctx.fillStyle = '#5a3e26';
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.3 + fx.t * 0.2;
+        ctx.save(); ctx.translate(fx.x + Math.cos(a) * 12, fx.y + Math.sin(a) * 6); ctx.rotate(a);
+        ctx.fillRect(-5, -1.2, 10, 2.4); ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    } else if (fx.type === 'corpse') {
       ctx.globalAlpha = Math.min(1, fx.t / 3);
       ctx.fillStyle = '#5a1a14';
       ctx.beginPath(); ctx.ellipse(fx.x, fx.y + 6, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill();
@@ -1191,6 +1336,12 @@ function render(ctx, cam, vw, vh, ui) {
         drawHpBar(ctx, e.x - 14, e.y - 36, 28, e.hp / e.maxHp);
         ctx.fillStyle = '#ffd86a';
         for (let i = 0; i < (e.level || 1); i++) ctx.fillRect(e.x - 13 + i * 6, e.y - 42, 4, 4);
+      } else if (isNaval(e)) {
+        drawHpBar(ctx, e.x - 16, e.y - 40, 32, e.hp / e.maxHp);
+        if (e.cargo && e.cargo.length) {
+          ctx.fillStyle = '#e9dcc0';
+          for (let i = 0; i < e.cargo.length; i++) ctx.fillRect(e.x - 15 + i * 5, e.y - 46, 3, 4);
+        }
       } else drawHpBar(ctx, e.x - 10, e.y - 26, 20, e.hp / e.maxHp);
       if (e.stunT > 0) {
         ctx.fillStyle = '#ffe680';
@@ -1265,8 +1416,8 @@ function drawIcon(canvas, kind, type, faction, color) {
   ctx.fillRect(0, 0, W, H);
   if (kind === 'unit') {
     ctx.save();
-    const s = W / 30 * (type === 'siege' ? 0.75 : type === 'rider' ? 0.9 : type === 'hero' ? (faction === 'jotnar' ? 0.62 : 0.85) : 1.1);
-    ctx.translate(W / 2, H * (type === 'siege' ? 0.62 : type === 'hero' ? 0.66 : 0.55));
+    const s = W / 30 * (type === 'siege' ? 0.75 : type === 'rider' ? 0.9 : type === 'hero' ? (faction === 'jotnar' ? 0.62 : 0.85) : (type === 'transport' || type === 'warship') ? 0.62 : 1.1);
+    ctx.translate(W / 2, H * (type === 'siege' ? 0.62 : type === 'hero' ? 0.66 : (type === 'transport' || type === 'warship') ? 0.74 : 0.55));
     drawUnitSprite(ctx, type, faction, color, { dir: 1, walk: 0, atk: 0, scale: s });
     ctx.restore();
   } else if (kind === 'bldg') {
